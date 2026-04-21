@@ -1,9 +1,9 @@
 import { Invoice, InvoiceItem, User, Payment, Item, Container, Warehouse, Stock, Ledger, Category, Party, sequelize } from "../../models/model.js";
 import { fn, col, Op, Sequelize } from "sequelize";
 
-const AUTO_PURCHASE_STOCK_TYPES = ["fix_purchase", "unfix_purchase", "wholesale_purchase"];
-const AUTO_SALE_STOCK_TYPES = ["wholesale_sale"];
-const AUTO_STOCK_MANAGED_TYPES = ["sale", ...AUTO_PURCHASE_STOCK_TYPES, ...AUTO_SALE_STOCK_TYPES];
+const AUTO_PURCHASE_STOCK_TYPES = ["wholesale_purchase"];
+const AUTO_SALE_STOCK_TYPES = ["wholesale_sale", "unfix_sale"];
+const AUTO_STOCK_MANAGED_TYPES = ["sale", ...AUTO_PURCHASE_STOCK_TYPES, ...AUTO_SALE_STOCK_TYPES, "fix_sale", "fix_purchase", "unfix_purchase"];
 const STOCK_PREFIX_MAP = {
   stock_in: "STI",
   stock_out: "STO",
@@ -21,6 +21,18 @@ const INVOICE_PAYMENT_CONFIG = {
     prefix: "PMI",
     description: "Received Payment",
     debit: false,
+  },
+  fix_purchase: {
+    paymentType: "payment_out",
+    prefix: "PMO",
+    description: "Paid Payment",
+    debit: false,
+  },
+  fix_sale: {
+    paymentType: "payment_in",
+    prefix: "PMI",
+    description: "Received Payment",
+    debit: true,
   },
 };
 const STOCK_LEDGER_CATEGORY_NAMES = ["currency", "gold"];
@@ -243,6 +255,28 @@ const syncInvoiceAutoPayment = async ({
   const type = invoice.invoiceType?.toLowerCase();
   const paymentConfig = INVOICE_PAYMENT_CONFIG[type];
   if (!paymentConfig) {
+    if (type === "unfix_sale") {
+      const existingPayments = await Payment.findAll({
+        where: {
+          invoiceId: invoice.id,
+          paymentType: "payment_in",
+        },
+        transaction,
+      });
+
+      if (existingPayments.length > 0) {
+        const paymentIds = existingPayments.map((payment) => payment.id);
+        await Ledger.destroy({
+          where: { paymentId: { [Op.in]: paymentIds } },
+          transaction,
+        });
+        await Payment.destroy({
+          where: { id: { [Op.in]: paymentIds } },
+          transaction,
+        });
+      }
+    }
+
     return null;
   }
 
@@ -1428,21 +1462,29 @@ export const createInvoice = async (req) => {
     const type = invoice.invoiceType?.toLowerCase();
     const category = await Category.findByPk(req.body.categoryId);
 
-    if (["purchase", "clearance_bill", "wholesale_purchase", "fix_purchase", "unfix_purchase"].includes(type)) {
+    if (["purchase", "clearance_bill", "wholesale_purchase"].includes(type)) {
       creditAmount = invoice.grandTotal;
     }
 
-    if (["sale", "wholesale_sale", "fix_sale", "unfix_sale"].includes(type)) {
+    if (["sale", "wholesale_sale", "fix_sale"].includes(type)) {
       debitAmount = invoice.grandTotal;
     }
 
     if (category && ["currency", "gold"].includes(category.name.toLowerCase())) {
-      if (["purchase", "clearance_bill", "fix_purchase", "unfix_purchase", "wholesale_purchase"].includes(type)) {
+      if (["purchase", "clearance_bill", "unfix_purchase", "wholesale_purchase"].includes(type)) {
         creditQuantity = items[0]?.quantity ?? 0;
         stock_Currency = items[0]?.name ?? null;
       }
-      if (["sale", "fix_sale", "unfix_sale", "wholesale_sale"].includes(type)) {
+      if (type === "fix_purchase") {
         debitQuantity = items[0]?.quantity ?? 0;
+        stock_Currency = items[0]?.name ?? null;
+      }
+      if (type === "unfix_sale") {
+        debitQuantity = items[0]?.quantity ?? 0;
+        stock_Currency = items[0]?.name ?? null;
+      }
+      if (type === "fix_sale") {
+        creditQuantity = items[0]?.quantity ?? 0;
         stock_Currency = items[0]?.name ?? null;
       }
     }
@@ -1498,7 +1540,7 @@ export const createInvoice = async (req) => {
         items,
         movementType: "stock_out",
         transaction: t,
-        createLedgerEntry: shouldCreateAutoStockLedger(type, category?.name),
+        createLedgerEntry: type === "unfix_sale" ? false : shouldCreateAutoStockLedger(type, category?.name),
       });
     }
 
@@ -1721,21 +1763,29 @@ export const updateInvoice = async (req) => {
         const type = invoice.invoiceType?.toLowerCase();
         const category = await Category.findByPk(req.body.categoryId);
 
-        if (["purchase", "clearance_bill", "wholesale_purchase", "fix_purchase", "unfix_purchase"].includes(type)) {
+        if (["purchase", "clearance_bill", "wholesale_purchase"].includes(type)) {
           creditAmount = invoice.grandTotal;
         }
 
-        if (["sale", "wholesale_sale", "fix_sale", "unfix_sale"].includes(type)) {
+        if (["sale", "wholesale_sale", "fix_sale"].includes(type)) {
           debitAmount = invoice.grandTotal;
         }
 
         if (category && ["currency", "gold"].includes(category.name.toLowerCase())) {
-          if (["purchase", "clearance_bill", "fix_purchase", "unfix_purchase", "wholesale_purchase"].includes(type)) {
+          if (["purchase", "clearance_bill", "unfix_purchase", "wholesale_purchase"].includes(type)) {
             creditQuantity = items[0]?.quantity ?? 0;
             stock_Currency = items[0]?.name ?? null;
           }
-          if (["sale", "fix_sale", "unfix_sale", "wholesale_sale"].includes(type)) {
+          if (type === "fix_purchase") {
             debitQuantity = items[0]?.quantity ?? 0;
+            stock_Currency = items[0]?.name ?? null;
+          }
+          if (type === "unfix_sale") {
+            debitQuantity = items[0]?.quantity ?? 0;
+            stock_Currency = items[0]?.name ?? null;
+          }
+          if (type === "fix_sale") {
+            creditQuantity = items[0]?.quantity ?? 0;
             stock_Currency = items[0]?.name ?? null;
           }
         }
@@ -1791,7 +1841,7 @@ export const updateInvoice = async (req) => {
             movementType: "stock_out",
             transaction: t,
             updatedBy: updatedInvoice.updatedBy,
-            createLedgerEntry: shouldCreateAutoStockLedger(nextInvoiceType, category?.name),
+            createLedgerEntry: nextInvoiceType === "unfix_sale" ? false : shouldCreateAutoStockLedger(nextInvoiceType, category?.name),
           });
         }
 

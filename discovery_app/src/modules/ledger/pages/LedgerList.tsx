@@ -199,7 +199,7 @@ export default function LedgerList() {
 
       if (hasStockEntry) {
         const stockKey = getStockBalanceKey(ledger);
-        stockBalancesByItem[stockKey] = (stockBalancesByItem[stockKey] || 0) + (debitQty - creditQty);
+        stockBalancesByItem[stockKey] = (stockBalancesByItem[stockKey] || 0) + (creditQty - debitQty);
         cumulativeStockBalance = stockBalancesByItem[stockKey];
       }
 
@@ -321,9 +321,9 @@ export default function LedgerList() {
       }
 
       current.purchaseBalance = current.purchaseCredit - current.purchaseDebit;
-      current.purchaseStockBalance = current.purchaseStockDebit - current.purchaseStockCredit;
+      current.purchaseStockBalance = current.purchaseStockCredit - current.purchaseStockDebit;
       current.saleBalance = current.saleCredit - current.saleDebit;
-      current.saleStockBalance = current.saleStockDebit - current.saleStockCredit;
+      current.saleStockBalance = current.saleStockCredit - current.saleStockDebit;
       current.advanceBalance = current.advanceCredit - current.advanceDebit;
       current.closeBalance = current.purchaseBalance + current.saleBalance;
 
@@ -371,7 +371,7 @@ export default function LedgerList() {
 
       acc[itemLabel].debit += debit;
       acc[itemLabel].credit += credit;
-      acc[itemLabel].balance = acc[itemLabel].debit - acc[itemLabel].credit;
+      acc[itemLabel].balance = acc[itemLabel].credit - acc[itemLabel].debit;
 
       return acc;
     }, {});

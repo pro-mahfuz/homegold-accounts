@@ -70,7 +70,7 @@ export default function CustomerLedger() {
       cumulativeMap[currency] = (cumulativeMap[currency] || 0) + moneyChange;
 
       // Stock balance
-      const stockChange = Number(ledger.debitQty ?? 0) - Number(ledger.creditQty ?? 0);
+      const stockChange = Number(ledger.creditQty ?? 0) - Number(ledger.debitQty ?? 0);
       cumulativeMap[stockCurrency] = (cumulativeMap[stockCurrency] || 0) + stockChange;
 
       const cumulativeBalanceArray = Object.entries(cumulativeMap).map(([cur, amount]) => ({
@@ -302,10 +302,10 @@ export default function CustomerLedger() {
                           {categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase())) && (
                             <>
                             <TableCell className="border border-gray-500 bg-gray-50 text-center px-1 py-1">
-                              <div className="text-green-700">{ledger.debitQty > 0 ? `${ledger.stockCurrency} : ${ledger.debitQty}` : ``}</div>
+                              <div className="text-red-500">{ledger.debitQty > 0 ? `${ledger.stockCurrency} : ${ledger.debitQty}` : ``}</div>
                             </TableCell>
                             <TableCell className="border border-gray-500 bg-gray-50 text-center px-1 py-1">
-                              <div className="text-red-500">{ledger.creditQty > 0 ? `${ledger.stockCurrency} : ${ledger.creditQty}` : ``}</div>
+                              <div className="text-green-700">{ledger.creditQty > 0 ? `${ledger.stockCurrency} : ${ledger.creditQty}` : ``}</div>
                             </TableCell>
                             </>
                           )}
