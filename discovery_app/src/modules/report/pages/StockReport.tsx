@@ -19,7 +19,6 @@ import {
 import { getStockReport } from "../../stock/features/stockThunks.ts";
 import { selectAuth } from "../../auth/features/authSelectors";
 import { selectUserById } from "../../user/features/userSelectors";
-import { selectAllCategory } from "../../category/features/categorySelectors.ts";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
 
 export default function StockReport() {
@@ -35,9 +34,6 @@ export default function StockReport() {
   const user = useSelector(selectUserById(Number(authUser.user?.id)));
   const status = useSelector(selectStockStatus);
   const stockReports = useSelector(selectStockReport);
-  const categories = useSelector(selectAllCategory);
-  const showContainerColumn = !categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase()));
-  const tableColumnCount = showContainerColumn ? 10 : 9;
   const itemSummaryColumnCount = 8;
   const purchaseSummaryColumnCount = 7;
   const saleSummaryColumnCount = 7;
@@ -76,8 +72,7 @@ export default function StockReport() {
       totalStock: 0
     }
   );
-  const sellingStock =
-    overall.currentStock - (overall.totalUnfixSale - overall.totalFixSale);
+
 
   const purchasePartySummary = useMemo(() => {
     const grouped = new Map<
