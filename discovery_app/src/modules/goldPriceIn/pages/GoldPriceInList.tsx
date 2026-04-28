@@ -149,6 +149,20 @@ const calculateOunceRateDirham = (
   return (spot * dollar).toFixed(6).replace(/\.?0+$/, "");
 };
 
+const calculateBdtPerGram = (
+  totalBdtPerBori?: string | number | null,
+  boriGram?: string | number | null
+) => {
+  const total = Number(totalBdtPerBori);
+  const gramsPerBori = Number(boriGram) || 11.664;
+
+  if (!Number.isFinite(total) || !Number.isFinite(gramsPerBori) || gramsPerBori === 0) {
+    return "";
+  }
+
+  return (total / gramsPerBori).toFixed(3);
+};
+
 export default function GoldPriceInList() {
   const dispatch = useDispatch<AppDispatch>();
   const authUser = useSelector(selectAuth);
@@ -874,6 +888,38 @@ const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
                               <div className="flex h-11 items-center rounded-lg px-4 text-sm text-bold dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
                                 <span className="mr-2 font-bold text-gray-500">=</span>
                                 <span className="font-bold">{formatNumeric(formData.carretTotalBdtBori)} BDT</span>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* BDT PER GRAM */}
+                          <tr className="border-t dark:border-white/[0.05]">
+                            <td className="px-3 py-2 font-medium">BDT Per Gram</td>
+
+                            <td className="px-3 py-2">
+                              <div className="flex h-11 items-center rounded-lg px-4 text-sm text-bold dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                                <span className="mr-2 font-bold text-gray-500">=</span>
+                                <span className="font-bold">
+                                  {formatNumeric(calculateBdtPerGram(formData.buyTotalBdtBori, formData.boriGram))} BDT
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="px-3 py-2">
+                              <div className="flex h-11 items-center rounded-lg px-4 text-sm text-bold dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                                <span className="mr-2 font-bold text-gray-500">=</span>
+                                <span className="font-bold">
+                                  {formatNumeric(calculateBdtPerGram(formData.sellTotalBdtBori, formData.boriGram))} BDT
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="px-3 py-2">
+                              <div className="flex h-11 items-center rounded-lg px-4 text-sm text-bold dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                                <span className="mr-2 font-bold text-gray-500">=</span>
+                                <span className="font-bold">
+                                  {formatNumeric(calculateBdtPerGram(formData.carretTotalBdtBori, formData.boriGram))} BDT
+                                </span>
                               </div>
                             </td>
                           </tr>
