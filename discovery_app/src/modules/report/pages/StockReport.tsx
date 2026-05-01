@@ -420,7 +420,7 @@ export default function StockReport() {
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Unit</TableCell>
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Unfix Purchase</TableCell>
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Fix Purchase</TableCell>
-                      <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Current Purchase Stock</TableCell>
+                      
                     </TableRow>
                   </TableHeader>
 
@@ -458,9 +458,7 @@ export default function StockReport() {
                           <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
                             {party.totalFixPurchase.toFixed(2)}
                           </TableCell>
-                          <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
-                            {party.currentPurchaseStock.toFixed(2)}
-                          </TableCell>
+                          
                         </TableRow>
                       ))
                     )}
@@ -486,7 +484,7 @@ export default function StockReport() {
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Unit</TableCell>
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Unfix Sale</TableCell>
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Fix Sale</TableCell>
-                      <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Current Sale Stock</TableCell>
+                      
                     </TableRow>
                   </TableHeader>
 
@@ -524,9 +522,7 @@ export default function StockReport() {
                           <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
                             {party.totalFixSale.toFixed(2)}
                           </TableCell>
-                          <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
-                            {party.currentSaleStock.toFixed(2)}
-                          </TableCell>
+                          
                         </TableRow>
                       ))
                     )}
@@ -549,8 +545,6 @@ export default function StockReport() {
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Sl</TableCell>
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Item</TableCell>
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Unit</TableCell>
-                      <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Current Stock</TableCell>
-                      <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Total Sale Stock</TableCell>
                       <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">Selling Stock</TableCell>
                     </TableRow>
                   </TableHeader>
@@ -582,12 +576,6 @@ export default function StockReport() {
                           </TableCell>
                           <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
                             {item.currentStock.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
-                            {item.totalSaleStock.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
-                            {item.sellingStock.toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))
