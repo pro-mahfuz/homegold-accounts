@@ -35,14 +35,10 @@ import {
 } from "../../category/features/categorySelectors";
 import { selectUserById } from "../../user/features/userSelectors";
 import { selectAuth } from "../../auth/features/authSelectors";
-import { selectAllContainer } from "../../container/features/containerSelectors";
-import { fetchAll } from "../../container/features/containerThunks.ts";
 import { selectInvoiceById } from "../features/invoiceSelectors";
 import { selectInvoiceStatus } from "../../invoice/features/invoiceSelectors.ts";
 
 import { selectStyles, CurrencyOptions } from "../../types.ts";
-import { selectAllStatusByType } from "../../status/features/statusSelectors.ts";
-import { fetchAllStatus } from "../../status/features/statusThunks.ts";
 import { selectAllUnitByBusiness } from "../../unit/features/unitSelectors.ts";
 import { fetchAllUnit } from "../../unit/features/unitThunks.ts";
 import { selectAllWarehouse } from "../../warehouse/features/warehouseSelectors.ts";
@@ -61,13 +57,12 @@ export default function InvoiceEditForm() {
     const navigate = useNavigate();
     const dispatch = useDispatch<AppDispatch>();
 
-    const [invoiceTypeName, setInvoiceTypeName] = useState("");
     const [loading, setLoading] = useState(false);
 
     const [formData, setFormData] = useState<Invoice>({
         id: 0,
         businessId: 0,
-        categoryId: 1,
+        categoryId: 0,
         invoiceType: "",
         invoiceRefId: 0,
         partyId: 0,
@@ -96,7 +91,7 @@ export default function InvoiceEditForm() {
     const invoice = useSelector(selectInvoiceById);
     const matchingParties = useSelector(selectAllParties);
     const categories = useSelector(selectAllCategory);
-    const InvoiceTypeOptions = useSelector(selectAllStatusByType(Number(user?.business?.id), invoiceTypeName ?? ''));
+    const goldCategoryId = categories.find((category) => category.name.toLowerCase() === "gold")?.id ?? 0;
     const UnitOptions = useSelector(selectAllUnitByBusiness(Number(user?.business?.id)));
     const itemData = useSelector(selectAllItemByBusiness(user?.business?.id || 0));
     const status = useSelector(selectInvoiceStatus);
@@ -121,8 +116,6 @@ export default function InvoiceEditForm() {
         if ( matchingParties.length === 0) dispatch(fetchParty({ type: "all" }));
         dispatch(fetchAllCategory());
         dispatch(fetchAllItem());
-        dispatch(fetchAll());
-        dispatch(fetchAllStatus());
         dispatch(fetchAllUnit());
         dispatch(fetchAllWarehouse());
         dispatch(fetchAllAccount());
@@ -134,7 +127,7 @@ export default function InvoiceEditForm() {
             setFormData({
                 id: invoice.id,
                 businessId: user.business.id,
-                categoryId: invoice.categoryId,
+                categoryId: Number(invoice.categoryId) || goldCategoryId || 0,
                 invoiceType: invoice.invoiceType,
                 invoiceRefId: invoice.invoiceRefId,
                 partyId: invoice.partyId,
@@ -157,18 +150,13 @@ export default function InvoiceEditForm() {
                 ounceRate: invoice.ounceRate,
                 ounceRateGram: invoice.ounceRateGram,
             });
-
-            const purchaseTypes = ["purchase", "fix_purchase", "unfix_purchase", "wholesale_purchase"];
-            const invoicetype = purchaseTypes.includes(invoice.invoiceType ?? "") ? "purchase" : "sale";
-
-            setInvoiceTypeName(invoicetype);
         }
 
-    }, [user, invoice]);
+    }, [user, invoice, goldCategoryId]);
 
     const categoryItem = useSelector(selectCategoryById(Number(formData.categoryId)));
     const normalizedInvoiceType = formData.invoiceType?.toLowerCase() ?? "";
-    const selectedCategoryName = categoryItem?.name?.toLowerCase() ?? "";
+    const selectedCategoryName = categoryItem?.name?.toLowerCase() ?? "gold";
     const isStockCategory = ["currency", "gold"].includes(selectedCategoryName);
     const isMandatoryWholesalePaidType = MANDATORY_WHOLESALE_PAID_TYPES.includes(normalizedInvoiceType);
     const supportsInvoicePayment = ["sale", "wholesale_purchase", "wholesale_sale"].includes(normalizedInvoiceType);
@@ -178,7 +166,6 @@ export default function InvoiceEditForm() {
     const paymentCheckboxLabel = isSalePaymentType ? "Is Full Received" : "Is Full Paid";
     const getFinalInvoiceAmount = (grandTotal: number, discount: number | null | undefined) =>
         Math.max(0, (grandTotal ?? 0) - (discount ?? 0));
-    const containers = useSelector(selectAllContainer);
     const warehouses = useSelector(selectAllWarehouse);
     const paymentAccounts = useSelector(selectAllAccount);
 
@@ -319,6 +306,13 @@ export default function InvoiceEditForm() {
         e.preventDefault();
         setLoading(true); // start loading
         try {
+            const effectiveCategoryId = Number(formData.categoryId) || goldCategoryId;
+            if (!effectiveCategoryId) {
+                toast.error("Gold category not found.");
+                setLoading(false);
+                return;
+            }
+
             if (isMandatoryWholesalePaidType && !formData.isFullPaid) {
                 toast.error("Is Full Paid is mandatory for wholesale purchase and wholesale sale invoices.");
                 setLoading(false);
@@ -337,7 +331,10 @@ export default function InvoiceEditForm() {
                 return;
             }
 
-            const payload: Invoice = { ...formData };
+            const payload: Invoice = {
+                ...formData,
+                categoryId: effectiveCategoryId,
+            };
             if (isMandatoryWholesalePaidType) {
                 payload.paidTotal = getFinalInvoiceAmount(formData.grandTotal ?? 0, formData.discount);
                 payload.isFullPaid = true;
@@ -367,10 +364,15 @@ export default function InvoiceEditForm() {
     const handleList = (invoice: Invoice) => {
         if (!invoice.invoiceType) return; // stop if undefined
 
+        if (invoice.invoiceType === "clearance_bill") {
+            navigate("/invoice/all/0/list");
+            return;
+        }
+
         const purchaseTypes = ["purchase", "wholesale_purchase", "fix_purchase", "unfix_purchase"];
         const path = purchaseTypes.includes(invoice.invoiceType)
             ? "/invoice/purchase/0/list"
-            : user?.role?.name === "accountant" ? "/invoice/sell/0/list" : "/invoice/sale/0/list";
+            : "/invoice/sale/0/list";
 
         navigate(path);
     };
@@ -417,7 +419,7 @@ export default function InvoiceEditForm() {
         ) : (
             <form className="space-y-5" onSubmit={handleSubmit}>
             {/* Invoice Details */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                 {/* Date */}
                 <div>
                     <DatePicker
@@ -437,53 +439,6 @@ export default function InvoiceEditForm() {
                     
                 </div>
 
-                <div>
-                    <Label>Select Category</Label>
-                    <Select
-                        options={categories.map((c) => ({
-                            label: c.name,
-                            value: c.id,
-                        }))}
-                        placeholder="Select category"
-                        value={
-                            categories
-                            .filter((c) => c.id === formData.categoryId)
-                            .map((c) => ({ label: c.name, value: c.id }))[0] || null
-                        }
-                        onChange={(selectedOption) =>
-                            setFormData((prev) => ({
-                                ...prev,
-                                categoryId: selectedOption?.value ?? 0,
-                            }))
-                        }
-                        isClearable
-                        styles={selectStyles}
-                        classNamePrefix="react-select"
-                    />
-                    
-                </div>
-
-                {/* Invoice Type */}
-                <div>
-                    <Label>Select Invoice Type</Label>
-                    <Select
-                        options={InvoiceTypeOptions}
-                        placeholder="Select invoice type"
-                        value={InvoiceTypeOptions.find(option => option.value === formData.invoiceType)}
-                        onChange={(selectedOption) => {
-                            setFormData(prev => ({
-                                ...prev,
-                                invoiceType: selectedOption!.value,
-                            }));
-                        }}
-                        getOptionLabel={(option) => option.name}
-                        getOptionValue={(option) => option.value}
-                        styles={selectStyles}
-                        classNamePrefix="react-select"
-                    />
-                    
-                </div>
-
                 {/* Invoice Ref ID */}
                 {/* { formData.invoiceType === "saleReturn" && (
                     <div>
@@ -494,7 +449,7 @@ export default function InvoiceEditForm() {
                                 value: Number(i.id),
                                 partyId: Number(i.partyId)
                             }))}
-                            placeholder="Select invoice type"
+                            placeholder="Select invoice reference"
 
                             onChange={(selectedOption) => {
                                 setFormData(prev => ({
@@ -743,40 +698,6 @@ export default function InvoiceEditForm() {
                                     classNamePrefix="react-select"
                                 />
                             </TableCell>
-
-                            { !isStockCategory && (
-                                <TableCell className="text-center px-4 py-2">
-                                    <Select
-                                        options={
-                                            containers?.map((i) => ({
-                                            label: `${i.containerNo}`,
-                                            value: i.id,
-                                            })) || []
-                                        }
-                                        placeholder="Select container"
-                                        value={
-                                            containers
-                                            .map((w) => ({ label: w.containerNo, value: w.id }))
-                                            .find((option) => option.value === formData.items[index]?.containerId) || null
-                                        }
-                                        onChange={(selectedOption) => {
-                                            const updatedItems = [...formData.items];
-                                            updatedItems[index] = {
-                                            ...updatedItems[index],
-                                            containerId: selectedOption?.value ?? null,
-                                            containerNo: selectedOption?.label ?? null,
-                                            };
-                                            setFormData((prev) => ({
-                                            ...prev,
-                                            items: updatedItems,
-                                            }));
-                                        }}
-                                        isClearable
-                                        styles={selectStyles}
-                                        classNamePrefix="react-select"
-                                    />
-                                </TableCell>
-                            )}
 
                             <TableCell className="text-center px-4 py-2">
                                 <Input

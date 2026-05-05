@@ -1,5 +1,34 @@
 import { Role, Permission } from "../../models/model.js";
 
+const EXCLUDED_PERMISSION_TERMS = ["bill", "container", "invoice", "customer", "supplier"];
+const EXCLUDED_PERMISSION_ACTIONS = [
+    "report_daily_profit",
+    "report_profit",
+    "report_sale_cash",
+    "report_sale_outstanding",
+    "report_sale_statement",
+];
+const EXCLUDED_PERMISSION_ACTION_FRAGMENTS = ["sale_2", "payment_2"];
+
+const shouldExcludePermission = (permission) => {
+    const action = String(permission?.action ?? "").toLowerCase();
+    const values = [permission?.group, permission?.name, permission?.action]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+
+    if (EXCLUDED_PERMISSION_ACTIONS.includes(action)) {
+        return true;
+    }
+
+    if (EXCLUDED_PERMISSION_ACTION_FRAGMENTS.some((fragment) => action.includes(fragment))) {
+        return true;
+    }
+
+    return values.some((value) =>
+        EXCLUDED_PERMISSION_TERMS.some((term) => value.includes(term))
+    );
+};
+
 export const getAllRoles = async () => {
     const roles = await Role.findAll({ include: [ 
         {model: Permission, as: "permissions"}
@@ -7,7 +36,16 @@ export const getAllRoles = async () => {
 
     if (!roles || roles.length === 0) throw { status: 400, message: "No roles found" };
     
-    return roles;
+    return roles.map((role) => {
+        const roleData = role.toJSON();
+
+        return {
+            ...roleData,
+            permissions: (roleData.permissions ?? []).filter(
+                (permission) => !shouldExcludePermission(permission)
+            ),
+        };
+    });
 }
 
 export const activeRole = async (id) => {

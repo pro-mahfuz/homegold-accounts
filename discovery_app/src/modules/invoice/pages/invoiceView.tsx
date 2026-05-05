@@ -44,13 +44,16 @@ export default function InvoiceView() {
     const categories = useSelector(selectAllCategory);
 
     const handleEdit = (invoice: Invoice) => {
-        invoice.invoiceType === "clearance_bill"
-        ? navigate(`/bill/${invoice.id}/edit`)
-        : navigate(`/invoice/${invoice.id}/edit`);
+        navigate(`/invoice/${invoice.id}/edit`);
     };
 
     const handleList = (invoice: Invoice) => {
         if (!invoice.invoiceType) return; // stop if undefined
+
+        if (invoice.invoiceType === "clearance_bill") {
+            navigate("/invoice/all/0/list");
+            return;
+        }
 
         const purchaseTypes = ["purchase", "wholesale_purchase", "fix_purchase", "unfix_purchase"];
         const path = purchaseTypes.includes(invoice.invoiceType)

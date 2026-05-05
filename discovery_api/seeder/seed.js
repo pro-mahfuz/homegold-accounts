@@ -51,12 +51,6 @@ async function seed() {
     { name: "Warehouse View", action: "view_warehouse", group: "Warehouse" },
     { name: "Warehouse Delete", action: "delete_warehouse", group: "Warehouse" },
 
-    { name: "Container Manage", action: "manage_container", group: "Container" },
-    { name: "Container Create", action: "create_container", group: "Container" },
-    { name: "Container Edit", action: "edit_container", group: "Container" },
-    { name: "Container View", action: "view_container", group: "Container" },
-    { name: "Container Delete", action: "delete_container", group: "Container" },
-
     { name: "User Manage", action: "manage_users", group: "User" },
     { name: "User Create", action: "create_users", group: "User" },
     { name: "User Edit", action: "edit_users", group: "User" },
@@ -72,24 +66,6 @@ async function seed() {
     { name: "Party Edit", action: "edit_party", group: "Party" },
     { name: "Party View", action: "view_party", group: "Party" },
     { name: "Party Delete", action: "delete_party", group: "Party" },
-
-    { name: "Supplier Manage", action: "manage_supplier", group: "Supplier" },
-    { name: "Supplier Create", action: "create_supplier", group: "Supplier" },
-    { name: "Supplier Edit", action: "edit_supplier", group: "Supplier" },
-    { name: "Supplier View", action: "view_supplier", group: "Supplier" },
-    { name: "Supplier Delete", action: "delete_supplier", group: "Supplier" },
-
-    { name: "Customer Manage", action: "manage_customer", group: "Customer" },
-    { name: "Customer Create", action: "create_customer", group: "Customer" },
-    { name: "Customer Edit", action: "edit_customer", group: "Customer" },
-    { name: "Customer View", action: "view_customer", group: "Customer" },
-    { name: "Customer Delete", action: "delete_customer", group: "Customer" },
-
-    { name: "Invoice Manage", action: "manage_invoice", group: "Invoice" },
-    { name: "Invoice Create", action: "create_invoice", group: "Invoice" },
-    { name: "Invoice Edit", action: "edit_invoice", group: "Invoice" },
-    { name: "Invoice View", action: "view_invoice", group: "Invoice" },
-    { name: "Invoice Delete", action: "delete_invoice", group: "Invoice" },
 
     { name: "Purchase Manage", action: "manage_purchase", group: "Purchase" },
     { name: "Purchase Create", action: "create_purchase", group: "Purchase" },
@@ -108,12 +84,6 @@ async function seed() {
     { name: "Payment Edit", action: "edit_payment", group: "Payment" },
     { name: "Payment View", action: "view_payment", group: "Payment" },
     { name: "Payment Delete", action: "delete_payment", group: "Payment" },
-
-    { name: "Bill Manage", action: "manage_bill", group: "Bill" },
-    { name: "Bill Create", action: "create_bill", group: "Bill" },
-    { name: "Bill Edit", action: "edit_bill", group: "Bill" },
-    { name: "Bill View", action: "view_bill", group: "Bill" },
-    { name: "Bill Delete", action: "delete_bill", group: "Bill" },
 
     { name: "Expense Manage", action: "manage_expense", group: "Expense" },
     { name: "Expense Create", action: "create_expense", group: "Expense" },
@@ -141,10 +111,7 @@ async function seed() {
     { name: "Report Stock", action: "report_stock", group: "Report" },
     { name: "Report Sale", action: "report_sale", group: "Report" },
     { name: "Report Payment", action: "report_payment", group: "Report" },
-    { name: "Report Expense (Container)", action: "report_container_expense", group: "Report" },
     { name: "Report Expense", action: "report_expense", group: "Report" },
-    { name: "Report Profit", action: "report_profit", group: "Report" },
-    { name: "Report Bill", action: "report_bill", group: "Report" },
     { name: "Report Balance", action: "report_balance", group: "Report" },
 
     { name: "Status Manage", action: "manage_status", group: "Status" },

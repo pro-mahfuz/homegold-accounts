@@ -33,13 +33,9 @@ import { selectAllParties } from "../../party/features/partySelectors";
 import { selectAllCategory, selectCategoryById } from "../../category/features/categorySelectors";
 import { selectUserById } from "../../user/features/userSelectors";
 import { selectAuth } from "../../auth/features/authSelectors";
-import { selectAllContainer } from "../../container/features/containerSelectors";
-import { fetchAll } from "../../container/features/containerThunks.ts";
 import { selectAllInvoice } from "../../invoice/features/invoiceSelectors.ts";
 import { fetchAllInvoicePagination } from "../features/invoiceThunks.ts";
-import { selectAllStatusByType } from "../../status/features/statusSelectors.ts";
 import { selectAllUnitByBusiness } from "../../unit/features/unitSelectors.ts";
-import { fetchAllStatus } from "../../status/features/statusThunks.ts";
 import { fetchAllUnit } from "../../unit/features/unitThunks.ts";
 import { selectAllWarehouse } from "../../warehouse/features/warehouseSelectors.ts";
 import { fetchAllWarehouse } from "../../warehouse/features/warehouseThunks.ts";
@@ -54,6 +50,16 @@ export default function InvoiceCreateForm() {
     const { invoiceType } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch<AppDispatch>();
+    const purchaseRouteTypes = ["purchase", "fix_purchase", "unfix_purchase", "wholesale_purchase"];
+    const saleRouteTypes = ["sale", "fix_sale", "unfix_sale", "wholesale_sale"];
+    const isPurchaseRoute = purchaseRouteTypes.includes(invoiceType ?? "");
+    const isSaleRoute = saleRouteTypes.includes(invoiceType ?? "");
+    const invoiceTitle = invoiceType
+        ? invoiceType
+            .split("_")
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+            .join(" ")
+        : "Invoice";
 
     const authUser = useSelector(selectAuth);
     const user = useSelector(selectUserById(Number(authUser.user?.id)));
@@ -61,31 +67,28 @@ export default function InvoiceCreateForm() {
 
     useEffect(() => {
         dispatch(fetchAllCategory());
-        dispatch(fetchAllStatus());
         dispatch(fetchAllAccount());
         dispatch(fetchAllUnit());
         dispatch(fetchAllItem());
-        if (invoiceType === "sale") {
+        if (isSaleRoute) {
             dispatch(fetchAllWarehouse());
-            dispatch(fetchAll());
         }
         if ( matchingParties.length === 0) dispatch(fetchParty({ type: "all" }));
-    }, [dispatch, invoiceType]);
+    }, [dispatch, isSaleRoute]);
 
     const matchingParties = useSelector(selectAllParties);
     const categories = useSelector(selectAllCategory);
+    const goldCategoryId = categories.find((category) => category.name.toLowerCase() === "gold")?.id ?? 0;
 
     const invoices = useSelector(selectAllInvoice);
-    const InvoiceTypeOptions = useSelector(selectAllStatusByType(Number(user?.business?.id), invoiceType ?? ''));
     const UnitOptions = useSelector(selectAllUnitByBusiness(Number(user?.business?.id)));
     const warehouses = useSelector(selectAllWarehouse);
     const paymentAccounts = useSelector(selectAllAccount);
-    const containers = useSelector(selectAllContainer);
     const itemData = useSelector(selectAllItemByBusiness(user?.business?.id || 0));
     
     const [formData, setFormData] = useState<Invoice>({
         businessId: 0,
-        categoryId: 1,
+        categoryId: 0,
         invoiceType: invoiceType,
         invoiceRefId: 0,
         partyId: 0,
@@ -138,9 +141,22 @@ export default function InvoiceCreateForm() {
         }));
     }, [user, invoiceType]);
 
+    useEffect(() => {
+        if (!goldCategoryId) return;
+
+        setFormData((prev) =>
+            prev.categoryId === goldCategoryId
+                ? prev
+                : {
+                    ...prev,
+                    categoryId: goldCategoryId,
+                }
+        );
+    }, [goldCategoryId]);
+
     const categoryItem = useSelector(selectCategoryById(Number(formData.categoryId)));
     const normalizedInvoiceType = formData.invoiceType?.toLowerCase() ?? "";
-    const selectedCategoryName = categoryItem?.name?.toLowerCase() ?? "";
+    const selectedCategoryName = categoryItem?.name?.toLowerCase() ?? "gold";
     const isStockCategory = ["currency", "gold"].includes(selectedCategoryName);
     const isMandatoryWholesalePaidType = MANDATORY_WHOLESALE_PAID_TYPES.includes(normalizedInvoiceType);
     const supportsInvoicePayment = ["sale", "wholesale_purchase", "wholesale_sale"].includes(normalizedInvoiceType);
@@ -196,6 +212,13 @@ export default function InvoiceCreateForm() {
         setLoading(true);
 
         try {
+            const effectiveCategoryId = goldCategoryId || Number(formData.categoryId);
+            if (!effectiveCategoryId) {
+                toast.error("Gold category not found.");
+                setLoading(false);
+                return;
+            }
+
             if (isMandatoryWholesalePaidType && !formData.isFullPaid) {
                 toast.error("Is Full Paid is mandatory for wholesale purchase and wholesale sale invoices.");
                 setLoading(false);
@@ -214,7 +237,10 @@ export default function InvoiceCreateForm() {
                 return;
             }
 
-            const payload: Invoice = { ...formData };
+            const payload: Invoice = {
+                ...formData,
+                categoryId: effectiveCategoryId,
+            };
             if (isMandatoryWholesalePaidType) {
                 payload.paidTotal = getFinalInvoiceAmount(formData.grandTotal ?? 0, formData.discount);
                 payload.isFullPaid = true;
@@ -246,7 +272,7 @@ export default function InvoiceCreateForm() {
             // Get selected category name
             const selectedCategory = categories.find(
                 (c) => c.id === formData.categoryId
-            )?.name.toLowerCase() ?? "";
+            )?.name.toLowerCase() ?? "gold";
 
             // --- PRICE LOGIC ---
             const itemPrice = selectedCategory === "gold" && Number(item.purity) > 0
@@ -275,7 +301,7 @@ export default function InvoiceCreateForm() {
     const addItem = () => {
         const selectedCategory = categories.find(
             (c) => c.id === formData.categoryId
-        )?.name.toLowerCase() ?? "";
+        )?.name.toLowerCase() ?? "gold";
 
         // Create item with correct price
         const newItem = {
@@ -400,8 +426,8 @@ export default function InvoiceCreateForm() {
 
     return (
         <div>
-        <PageMeta title={`${invoiceType ? invoiceType.charAt(0).toUpperCase() + invoiceType.slice(1).toLowerCase() : ''} Create`} description="Form to create a new invoice" />
-        <PageBreadcrumb pageTitle={`${invoiceType ? invoiceType.charAt(0).toUpperCase() + invoiceType.slice(1).toLowerCase() : ''} Create`} />
+        <PageMeta title={`${invoiceTitle} Create`} description="Form to create a new invoice" />
+        <PageBreadcrumb pageTitle={`${invoiceTitle} Create`} />
 
         <div className="mb-4 flex justify-start">
             <div>
@@ -413,15 +439,15 @@ export default function InvoiceCreateForm() {
                 </button>
 
                 <button
-                    onClick={() => {invoiceType === "purchase"
+                    onClick={() => {isPurchaseRoute
                         ? navigate(`/invoice/purchase/0/list`)
-                        : invoiceType === "sale" ? navigate(`/invoice/sale/0/list`) : navigate(`/invoice/all/0/list`)
+                        : isSaleRoute ? navigate(`/invoice/sale/0/list`) : navigate(`/invoice/all/0/list`)
                     }}
                     className="bg-fuchsia-400 text-white px-2 py-1 rounded-full hover:bg-fuchsia-700 mr-4"
                 >
-                    {invoiceType === "purchase"
+                    {isPurchaseRoute
                         ? "Purchase List"
-                        : invoiceType === "sale" ? "Sale List" : "Invoice List"
+                        : isSaleRoute ? "Sale List" : "Invoice List"
                     }
                 </button>
                 
@@ -430,7 +456,7 @@ export default function InvoiceCreateForm() {
         
         <ComponentCard title="Fill up all fields to create a new invoice">
             <form className="space-y-5" onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                     {/* Date */}
                     <div>
                         <DatePicker
@@ -450,54 +476,6 @@ export default function InvoiceCreateForm() {
                         
                     </div>
 
-                    {/* Category */}
-                    <div>
-                        <Label>Select Category</Label>
-                        <Select
-                            options={categories.map((c) => ({
-                                label: c.name,
-                                value: c.id,
-                            })) || []}
-                            placeholder="Search and select category"
-                            value={
-                                categories
-                                .filter((c) => c.id === formData.categoryId)
-                                .map((c) => ({ label: c.name, value: c.id }))[0] || null
-                            }
-                            onChange={(selectedOption) =>
-                                setFormData((prev) => ({
-                                    ...prev,
-                                    categoryId: selectedOption?.value ?? 0,
-                                }))
-                            }
-                            isClearable
-                            styles={selectStyles}
-                            classNamePrefix="react-select"
-                            required
-                        />
-                    </div>
-
-                    {/* Invoice Type */}
-                    <div>
-                        <Label>Select Invoice Type</Label>
-                        <Select
-                            options={InvoiceTypeOptions}
-                            placeholder="Select invoice type"
-                            value={InvoiceTypeOptions.find(option => option.value === formData.invoiceType)}
-                            onChange={(selectedOption) => {
-                                setFormData(prev => ({
-                                    ...prev,
-                                    invoiceType: selectedOption!.value,
-                                }));
-                            }}
-                            styles={selectStyles}
-                            getOptionLabel={(option) => option.name}
-                            getOptionValue={(option) => option.value}
-                            classNamePrefix="react-select"
-                            required
-                        />
-                    </div>
-
                     {/* Invoice Ref ID */}
                     { formData.invoiceType === "saleReturn" && (
                         <div>
@@ -508,7 +486,7 @@ export default function InvoiceCreateForm() {
                                     value: Number(i.id),
                                     partyId: Number(i.partyId)
                                 }))}
-                                placeholder="Select invoice type"
+                                placeholder="Select invoice reference"
 
                                 onChange={(selectedOption) => {
                                     setFormData(prev => ({
@@ -768,39 +746,7 @@ export default function InvoiceCreateForm() {
                                 />
                             </TableCell>
 
-                            { !isStockCategory && (
-                                <TableCell className="text-center px-4 py-2">
-                                    <Select
-                                        options={
-                                            containers?.map((i) => ({
-                                            label: `${i.containerNo}`,
-                                            value: i.id,
-                                            })) || []
-                                        }
-                                        placeholder="Select container"
-                                        value={
-                                            containers
-                                            .map((w) => ({ label: w.containerNo, value: w.id }))
-                                            .find((option) => option.value === formData.items[index]?.containerId) || null
-                                        }
-                                        onChange={(selectedOption) => {
-                                            const updatedItems = [...formData.items];
-                                            updatedItems[index] = {
-                                            ...updatedItems[index],
-                                            containerId: selectedOption?.value ?? null,
-                                            containerNo: selectedOption?.label ?? null,
-                                            };
-                                            setFormData((prev) => ({
-                                            ...prev,
-                                            items: updatedItems,
-                                            }));
-                                        }}
-                                        isClearable
-                                        styles={selectStyles}
-                                        classNamePrefix="react-select"
-                                    />
-                                </TableCell>
-                            )}
+                            
 
                             <TableCell className="text-center px-4 py-2">
                                 <Input

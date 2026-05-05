@@ -22,7 +22,6 @@ import { selectAuth } from "../../auth/features/authSelectors";
 import { selectUserById } from "../../user/features/userSelectors";
 
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
-import { fetchAll } from "../../container/features/containerThunks.ts";
 import { fetchParty } from "../../party/features/partyThunks.ts";
 
 export default function SaleCashReport() {
@@ -37,7 +36,6 @@ export default function SaleCashReport() {
     dispatch(fetchParty({ type: "all" }))
     dispatch(getSaleCashReport());
     dispatch(fetchAllCategory());
-    dispatch(fetchAll());
   }, [dispatch, containerNo]);
 
   const authUser = useSelector(selectAuth);

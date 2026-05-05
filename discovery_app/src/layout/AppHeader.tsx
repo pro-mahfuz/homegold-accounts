@@ -86,13 +86,13 @@ const AppHeader: React.FC = () => {
               to="/gold-price-in/list"
               className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600 focus:outline-none"
             >
-              Gold Price In
+              Price In
             </Link>
             <Link
               to="/gold-converter"
               className="inline-flex items-center justify-center rounded-full bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700 focus:outline-none"
             >
-              Gold Converter
+              Converter
             </Link>
           </div>
 

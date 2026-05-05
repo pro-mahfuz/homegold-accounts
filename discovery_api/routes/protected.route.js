@@ -12,7 +12,6 @@ import { categorySchema } from "../modules/category/category.validator.js";
 import { statusTypeSchema } from "../modules/status/status.validator.js";
 import { unitSchema } from "../modules/unit/unit.validator.js";
 import { itemSchema } from "../modules/item/item.validator.js";
-import { containerSchema } from "../modules/container/container.validator.js";
 import { invoiceSchema } from "../modules/invoice/invoice.validator.js";
 import { paymentSchema } from "../modules/payment/payment.validator.js";
 import { stockSchema, stockTransferSchema } from "../modules/stock/stock.validator.js";
@@ -87,14 +86,14 @@ router.post("/user/:id/deactive", authorize("manage_users"), UserController.deac
 router.post("/user/:id/delete", authorize("delete_users"), UserController.deleteUser);
 
 /*---Party---*/
-router.get("/party/list", authorize(["manage_party", "manage_supplier", "manage_customer"]), PartyController.getAllParty);
-router.get("/party/list/paginated", authorize(["manage_party", "manage_supplier", "manage_customer"]), PartyController.getAllPartyPaginated);
+router.get("/party/list", authorize("manage_party"), PartyController.getAllParty);
+router.get("/party/list/paginated", authorize("manage_party"), PartyController.getAllPartyPaginated);
 router.get("/party/getReceivablePayable", PartyController.getReceivablePayable);
-router.post("/party/create", authorize(["create_party", "create_supplier", "create_customer"]), validate(partySchema), PartyController.createParty);
-router.get("/party/:id", authorize(["view_party", "view_supplier", "view_customer"]), PartyController.getPartyById);
-router.put("/party/:id", authorize(["edit_party", "edit_supplier", "edit_customer"]), validate(partySchema), PartyController.updateParty);
-router.post("/party/:id/active", authorize(["manage_party", "manage_supplier", "manage_customer"]), PartyController.activeParty);
-router.post("/party/:id/deactive", authorize(["manage_party", "manage_supplier", "manage_customer"]), PartyController.deactiveParty);
+router.post("/party/create", authorize("create_party"), validate(partySchema), PartyController.createParty);
+router.get("/party/:id", authorize("view_party"), PartyController.getPartyById);
+router.put("/party/:id", authorize("edit_party"), validate(partySchema), PartyController.updateParty);
+router.post("/party/:id/active", authorize("manage_party"), PartyController.activeParty);
+router.post("/party/:id/deactive", authorize("manage_party"), PartyController.deactiveParty);
 
 /*---Category---*/
 router.get("/category/list", CategoryController.getAllCategory);
@@ -131,24 +130,20 @@ router.post("/item/:id/deactive", authorize("manage_item"), ItemController.deact
 
 /*---Container---*/
 router.get("/container/list", ContainerController.getAllContainer);
-router.post("/container/create", authorize("create_container"), validate(containerSchema), ContainerController.createContainer);
-router.get("/container/:id/view", authorize("view_container"), ContainerController.getContainerById);
-router.put("/container/update", authorize("edit_container"), validate(containerSchema), ContainerController.updateContainer);
-router.post("/container/:id/delete", authorize("delete_container"), ContainerController.deactiveContainer);
 
 /*---Invoice---*/
-router.get("/invoice/list", authorize(["manage_invoice", "manage_purchase", "manage_sale", "report_sale", "report_container_expense", "report_expense", "report_profit", "report_bill"]), InvoiceController.getAllInvoice);
-router.post("/invoice/create", authorize(["create_invoice", "create_purchase", "create_sale", "create_bill"]), validate(invoiceSchema), InvoiceController.createInvoice);
-router.get("/invoice/:id/view", authorize(["view_invoice", "view_purchase", "view_sale", "view_bill"]), InvoiceController.getInvoiceById);
-router.put("/invoice/update", authorize(["edit_invoice", "edit_purchase", "edit_sale", "edit_bill"]), validate(invoiceSchema), InvoiceController.updateInvoice);
-router.post("/invoice/:id/delete", authorize(["delete_invoice", "delete_purchase", "delete_sale", "delete_bill"]), InvoiceController.deleteInvoice);
+router.get("/invoice/list", authorize(["manage_purchase", "manage_sale", "report_sale", "report_expense"]), InvoiceController.getAllInvoice);
+router.post("/invoice/create", authorize(["create_purchase", "create_sale"]), validate(invoiceSchema), InvoiceController.createInvoice);
+router.get("/invoice/:id/view", authorize(["view_purchase", "view_sale"]), InvoiceController.getInvoiceById);
+router.put("/invoice/update", authorize(["edit_purchase", "edit_sale"]), validate(invoiceSchema), InvoiceController.updateInvoice);
+router.post("/invoice/:id/delete", authorize(["delete_purchase", "delete_sale"]), InvoiceController.deleteInvoice);
 
 /*---Payment---*/
-router.get("/payment/list", authorize(["manage_payment", "manage_expense", "manage_payment_2", "report_payment", "report_payment_2"]), PaymentController.getAllPayment);
-router.get("/payment/paginatedList", authorize(["manage_payment", "manage_expense", "manage_payment_2", "report_payment", "report_payment_2"]), PaymentController.getAllPaymentPaginated);
-router.post("/payment/create", authorize(["create_payment", "create_expense", "create_payment_2"]), validate(paymentSchema), PaymentController.createPayment);
+router.get("/payment/list", authorize(["manage_payment", "manage_expense", "report_payment"]), PaymentController.getAllPayment);
+router.get("/payment/paginatedList", authorize(["manage_payment", "manage_expense", "report_payment"]), PaymentController.getAllPaymentPaginated);
+router.post("/payment/create", authorize(["create_payment", "create_expense"]), validate(paymentSchema), PaymentController.createPayment);
 router.get("/payment/:id/view", authorize(["view_payment", "view_expense"]), PaymentController.getPaymentById);
-router.put("/payment/update", authorize(["edit_payment", "edit_expense", "edit_payment_2"]), validate(paymentSchema), PaymentController.updatePayment);
+router.put("/payment/update", authorize(["edit_payment", "edit_expense"]), validate(paymentSchema), PaymentController.updatePayment);
 router.post("/payment/:id/delete", authorize("delete_payment", "delete_expense", ), PaymentController.deletePayment);
 
 /*---Warehouse---*/
@@ -192,14 +187,14 @@ router.get("/ledger/list", authorize(["manage_ledger", "currency_ledger"]), Ledg
 /** Report */
 router.post("/stock/getStockReport", authorize("report_stock"), StockController.getStockReport);
 router.post("/stock/getOverallStockReport", authorize("report_stock"), StockController.getOverallStockReport);
-router.post("/invoice/getSaleReport", authorize(["report_sale", "report_sale_2"]), InvoiceController.getSaleReport);
+router.post("/invoice/getSaleReport", authorize("report_sale"), InvoiceController.getSaleReport);
 router.post("/invoice/getPurchaseReport", authorize("report_purchase"), InvoiceController.getPurchaseReport);
-router.post("/invoice/getSaleContainerReport", authorize("report_sale_container"), InvoiceController.getSaleContainerReport);
+router.post("/invoice/getSaleContainerReport", authorize("report_sale"), InvoiceController.getSaleContainerReport);
 router.post("/invoice/getSaleCashReport", authorize("report_sale"), InvoiceController.getSaleCashReport);
-router.post("/invoice/getBillReport", authorize("report_bill"), InvoiceController.getBillReport);
-router.post("/invoice/getSalePaymentReport", authorize(["report_payment", "report_expense", "report_container_expense"]), InvoiceController.getSalePaymentReport);
-router.post("/invoice/getProfitLossReport", authorize("report_profit"), InvoiceController.getProfitLossReport);
-router.post("/invoice/getDailyProfitLossReport", authorize("report_daily_profit"), InvoiceController.getDailyProfitLossReport);
+router.post("/invoice/getBillReport", authorize("report_purchase"), InvoiceController.getBillReport);
+router.post("/invoice/getSalePaymentReport", authorize(["report_payment", "report_expense"]), InvoiceController.getSalePaymentReport);
+router.post("/invoice/getProfitLossReport", authorize("report_sale"), InvoiceController.getProfitLossReport);
+router.post("/invoice/getDailyProfitLossReport", authorize("report_sale"), InvoiceController.getDailyProfitLossReport);
 router.get("/report/balance/statement", BankController.getBalanceStatement);
 router.get("/report/asset/statement", BankController.getAssetStatement);
 

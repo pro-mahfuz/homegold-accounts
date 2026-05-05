@@ -25,7 +25,6 @@ import { selectUserById } from "../../user/features/userSelectors";
 
 import { selectAllCategory } from "../../category/features/categorySelectors.ts";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
-import { fetchAll } from "../../container/features/containerThunks.ts";
 import { selectParties } from "../../party/features/partySelectors";
 import { fetchParty } from "../../party/features/partyThunks.ts";
 import { selectStyles } from "../../types.ts";
@@ -44,7 +43,6 @@ export default function PurchaseReport() {
     dispatch(fetchParty({ type: "all" }))
     dispatch(getPurchaseReport());
     dispatch(fetchAllCategory());
-    dispatch(fetchAll());
     setContainer(containerNo ?? '');
   }, [dispatch, containerNo]);
 

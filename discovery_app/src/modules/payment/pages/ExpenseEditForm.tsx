@@ -21,7 +21,6 @@ import { fetchAll as fetchPayment } from "../../payment/features/paymentThunks.t
 import { fetchParty } from "../../party/features/partyThunks.ts";
 import { fetchAllInvoice } from "../../invoice/features/invoiceThunks.ts";
 import { fetchAllAccount } from "../../account/features/accountThunks.ts";
-import { fetchAll as fetchContainer } from "../../container/features/containerThunks.ts";
 import { fetchAllStatus } from "../../status/features/statusThunks.ts";
 
 import { selectAuth } from "../../auth/features/authSelectors";
@@ -29,7 +28,6 @@ import { selectUserById } from "../../user/features/userSelectors";
 import { selectPaymentById } from "../../payment/features/paymentSelectors.ts";
 import { selectAllInvoice } from "../../invoice/features/invoiceSelectors.ts";
 import { selectAllAccount } from "../../account/features/accountSelectors.ts";
-import { selectAllContainer } from "../../container/features/containerSelectors";
 import { selectAllStatusByType } from "../../status/features/statusSelectors.ts";
 
 export default function ExpenseEditForm() {
@@ -39,7 +37,6 @@ export default function ExpenseEditForm() {
 
     const authUser = useSelector(selectAuth);
     const user = useSelector(selectUserById(Number(authUser.user?.id)));
-    const containers = useSelector(selectAllContainer);
 
     useEffect(() => {
         if(invoices.length === 0){
@@ -52,7 +49,6 @@ export default function ExpenseEditForm() {
             dispatch(fetchAllInvoice());
         }
         dispatch(fetchAllAccount());
-        dispatch(fetchContainer());
         dispatch(fetchAllStatus());
     }, [dispatch]);
 
@@ -213,32 +209,7 @@ export default function ExpenseEditForm() {
                 </div>
                 )}
 
-                { formData.paymentType !== "office_expense" && (
-                    <div>
-                        <Label>Search Container</Label>
-                        <Select
-                            options={containers.map((i) => ({
-                            label: i.containerNo,
-                            value: i.id,
-                            }))}
-                            placeholder="Search and select item"
-                            value={
-                                containers
-                                ?.filter((b) => b.id === formData.containerId)
-                                .map((i) => ({ label: i.containerNo, value: i.id }))[0] || null
-                            }
-                            onChange={(selectedOption) =>
-                            setFormData((prev) => ({
-                                ...prev,
-                                containerId: selectedOption?.value ?? 0,
-                            }))
-                            }
-                            isClearable
-                            styles={selectStyles}
-                            classNamePrefix="react-select"
-                        />
-                    </div>
-                )}
+                
 
                 {/* Date */}
                 <div>

@@ -20,14 +20,12 @@ import { create } from "../features/paymentThunks";
 import { fetchParty } from "../../party/features/partyThunks.ts";
 import { fetchAllInvoice } from "../../invoice/features/invoiceThunks.ts";
 import { fetchAllAccount } from "../../account/features/accountThunks.ts";
-import { fetchAll as fetchContainer } from "../../container/features/containerThunks.ts";
 import { fetchAllStatus } from "../../status/features/statusThunks.ts";
 
 import { selectAuth } from "../../auth/features/authSelectors";
 import { selectUserById } from "../../user/features/userSelectors";
 import { selectAllInvoice } from "../../invoice/features/invoiceSelectors.ts";
 import { selectAllAccount } from "../../account/features/accountSelectors.ts";
-import { selectAllContainer } from "../../container/features/containerSelectors";
 import { selectAllStatusByType } from "../../status/features/statusSelectors.ts";
 
 
@@ -40,13 +38,11 @@ export default function ExpenseCreateForm() {
 
     const authUser = useSelector(selectAuth);
     const user = useSelector(selectUserById(Number(authUser.user?.id)));
-    const containers = useSelector(selectAllContainer);
 
     useEffect(() => {
         dispatch(fetchParty({ type: "all" }))
         dispatch(fetchAllInvoice());
         dispatch(fetchAllAccount());
-        dispatch(fetchContainer());
         dispatch(fetchAllStatus());
     }, [dispatch]);
 
@@ -191,31 +187,6 @@ export default function ExpenseCreateForm() {
                     </div>
                 ) }
 
-                { formData.paymentType === "container_expense" && (
-                    <div>
-                        <Label>Search Container</Label>
-                        <Select
-                            options={
-                                containers.map((i) => ({
-                                    label: `${i.containerNo}`,
-                                    value: i.id,
-                                })) || []
-                            }
-                            placeholder="Search and select item"
-                            
-                            onChange={(selectedOption) =>
-                                setFormData((prev) => ({
-                                    ...prev,
-                                    containerId: selectedOption?.value ?? 0,
-                                }))
-                            }
-                            isClearable
-                            styles={selectStyles}
-                            classNamePrefix="react-select"
-                            required
-                        />
-                    </div>
-                )}
 
                 {/* Date */}
                 <div>

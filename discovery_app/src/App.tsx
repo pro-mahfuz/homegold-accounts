@@ -34,9 +34,6 @@ import BusinessEditForm from "./modules/business/pages/BusinessEditForm";
 import BusinessView from "./modules/business/pages/BusinessView";
 import InvoiceEditForm from "./modules/invoice/pages/invoiceEditForm";
 import InvoiceView from "./modules/invoice/pages/invoiceView";
-import ContainerCreateForm from "./modules/container/pages/ContainerCreateForm";
-import ContainerEditForm from "./modules/container/pages/ContainerEditForm";
-import ContainerList from "./modules/container/pages/ContainerList";
 import PaymentCreateForm from "./modules/payment/pages/PaymentCreateForm";
 import PaymentList from "./modules/payment/pages/PaymentList";
 import PaymentEditForm from "./modules/payment/pages/PaymentEditForm";
@@ -50,16 +47,11 @@ import ProfitLossReport from "./modules/report/pages/profitLossReport";
 import ExpenseCreateForm from "./modules/payment/pages/ExpenseCreateForm";
 import ExpenseList from "./modules/payment/pages/ExpenseList";
 import ExpenseEditForm from "./modules/payment/pages/ExpenseEditForm";
-import ExpenseContainerReport from "./modules/report/pages/ExpenseContainerReport";
 import ExpenseOfficeReport from "./modules/report/pages/ExpenseOfficeReport";
 import ItemList from "./modules/item/pages/ItemList";
 import UnitList from "./modules/unit/pages/UnitList";
 import StatusList from "./modules/status/pages/StatusList";
 import BalanceStatement from "./modules/report/pages/BalanceStatement";
-import BillCreateForm from "./modules/bill/pages/BillCreateForm";
-import BillList from "./modules/bill/pages/BillList";
-import BillEditForm from "./modules/bill/pages/BillEditForm";
-import BillReport from "./modules/report/pages/BillReport";
 import PaymentAcountList from "./modules/account/pages/PaymentAcountList";
 import CustomerBalanceStatement from "./modules/report/pages/CustomerBalanceStatement";
 import SaleCashCollectionReport from "./modules/report/pages/SaleCashCollectionReport";
@@ -68,24 +60,14 @@ import DailyProfitLossReport from "./modules/report/pages/dailyProfitLossReport"
 import CapitalReport from "./modules/report/pages/CapitalReport";
 import ReceivableReport from "./modules/report/pages/ReceivableReport";
 import PayableReport from "./modules/report/pages/PayableReport";
-import SaleContainerReport from "./modules/report/pages/SaleContainerReport";
 import SaleOutstandingReport from "./modules/report/pages/SaleOutstandingReport";
 import PurchaseReport from "./modules/report/pages/PurchaseReport";
-import SellCreateForm from "./modules/invoice/pages/SellCreateForm";
-import SellList from "./modules/invoice/pages/SellList";
-import SellEditForm from "./modules/invoice/pages/SellEditForm";
-import SellReport from "./modules/report/pages/SellReport";
-import PaymentSys2CreateForm from "./modules/payment/pages/PaymentSys2CreateForm";
-import PaymentSys2List from "./modules/payment/pages/PaymentSys2List";
-import PaymentSys2EditForm from "./modules/payment/pages/PaymentSys2EditForm";
 import PurchaseCashPaymentReport from "./modules/report/pages/PurchaseCashPaymentReport";
 import SaleStatement from "./modules/report/pages/SaleStatement";
 import PaymentView from "./modules/payment/pages/PaymentView";
 import AccountStatement from "./modules/report/pages/AccountStatement";
 import ResetPassword from "./modules/auth/pages/ResetPassword";
 import ForgotPassword from "./modules/auth/pages/ForgotPassword";
-import PaymentSys2View from "./modules/payment/pages/PaymentSys2View";
-import BillView from "./modules/bill/pages/BillView";
 import GoldPriceInList from "./modules/goldPriceIn/pages/GoldPriceInList";
 import GoldConverter from "./modules/goldPriceIn/pages/GoldConverter";
 import BaseCurrencySettings from "./modules/settings/pages/BaseCurrencySettings";
@@ -128,7 +110,7 @@ export default function App() {
 
             {/* Party */}
             <Route index path="/party/:partyType/list" element={
-              <PrivateRoute permissions={['manage_party', 'manage_supplier', 'manage_customer']}>
+              <PrivateRoute permissions={['manage_party']}>
                 <PartyList />
               </PrivateRoute>} 
             />
@@ -140,68 +122,43 @@ export default function App() {
             />
 
             <Route index path="/party/:partyType/create" element={
-              <PrivateRoute permissions={['create_party', 'create_supplier', 'create_customer']}>
+              <PrivateRoute permissions={['create_party']}>
                 <PartyCreateForm />
               </PrivateRoute>} 
             />
 
             <Route index path="/party/view/:id" element={
-              <PrivateRoute permissions={['view_party', 'view_supplier', 'view_customer']}>
+              <PrivateRoute permissions={['view_party']}>
                 <PartyView />
               </PrivateRoute>} 
             />
 
             <Route index path="/party/edit/:id" element={
-              <PrivateRoute permissions={['edit_party', 'edit_supplier', 'edit_customer']}>
+              <PrivateRoute permissions={['edit_party']}>
                 <PartyEditForm />
-              </PrivateRoute>} 
-            />
-
-
-            {/* Container */}
-            <Route index path="/container/create" element={
-              <PrivateRoute permissions={['create_container']}>
-                <ContainerCreateForm />
-              </PrivateRoute>} 
-            />
-            <Route index path="/container/:categoryId/list" element={
-              <PrivateRoute permissions={['manage_container']}>
-                <ContainerList />
-              </PrivateRoute>} 
-            />
-
-            {/* <Route index path="/container/:id/view" element={
-              <PrivateRoute permissions={['view_container']}>
-                <ContainerView />
-              </PrivateRoute>} 
-            /> */}
-
-            <Route index path="/container/:id/edit" element={
-              <PrivateRoute permissions={['edit_container']}>
-                <ContainerEditForm />
               </PrivateRoute>} 
             />
 
             {/* Invoice */}
             <Route index path="/invoice/:invoiceType/create" element={
-              <PrivateRoute permissions={['create_invoice', 'create_purchase', 'create_sale']}>
+              <PrivateRoute permissions={['create_purchase', 'create_sale']}>
                 <InvoiceCreateForm />
               </PrivateRoute>} 
             />
             <Route index path="/invoice/:invoiceType/:categoryId/list" element={
-              <PrivateRoute permissions={['manage_invoice', 'manage_purchase', 'manage_sale']}>
+              <PrivateRoute permissions={['manage_purchase', 'manage_sale']}>
                 <InvoiceList />
               </PrivateRoute>} 
             />
 
             <Route index path="/invoice/:id/view" element={
-              <PrivateRoute permissions={['view_invoice', 'view_purchase', 'view_sale']}>
+              <PrivateRoute permissions={['view_purchase', 'view_sale']}>
                 <InvoiceView />
               </PrivateRoute>} 
             />
 
             <Route index path="/invoice/:id/edit" element={
-              <PrivateRoute permissions={['edit_invoice', 'edit_purchase', 'edit_sale']}>
+              <PrivateRoute permissions={['edit_purchase', 'edit_sale']}>
                 <InvoiceEditForm />
               </PrivateRoute>} 
             />
@@ -228,30 +185,6 @@ export default function App() {
             <Route index path="/payment/:id/view" element={
               <PrivateRoute permissions={['view_payment']}>
                 <PaymentView />
-              </PrivateRoute>} 
-            />
-
-            {/* Bill */}
-            <Route index path="/:invoiceType/create" element={
-              <PrivateRoute permissions={['create_bill']}>
-                <BillCreateForm />
-              </PrivateRoute>} 
-            />
-            <Route index path="/:invoiceType/list" element={
-              <PrivateRoute permissions={['manage_bill']}>
-                <BillList />
-              </PrivateRoute>} 
-            />
-
-            <Route index path="/:invoiceType/:id/edit" element={
-              <PrivateRoute permissions={['edit_bill']}>
-                <BillEditForm />
-              </PrivateRoute>} 
-            />
-
-            <Route index path="/:invoiceType/:id/view" element={
-              <PrivateRoute permissions={['view_bill']}>
-                <BillView />
               </PrivateRoute>} 
             />
 
@@ -319,7 +252,7 @@ export default function App() {
             />
 
             <Route index path="/report/:partyType/statement" element={
-              <PrivateRoute permissions={['statement_summary_party', 'statement_summary_supplier', 'statement_summary_customer']}>
+              <PrivateRoute permissions={['statement_summary_party']}>
                 <CustomerBalanceStatement />
               </PrivateRoute>} 
             />
@@ -348,11 +281,6 @@ export default function App() {
               </PrivateRoute>} 
             />
 
-            <Route index path="/report/sale/container" element={
-              <PrivateRoute permissions={['report_sale_container']}>
-                <SaleContainerReport />
-              </PrivateRoute>} 
-            />
 
             <Route index path="report/sale/cash-collection" element={
               <PrivateRoute permissions={['report_sale_cash_collection']}>
@@ -367,7 +295,7 @@ export default function App() {
             />
 
             <Route index path="/report/sale/cash-report" element={
-              <PrivateRoute permissions={['report_sale_cash']}>
+              <PrivateRoute permissions={['report_sale']}>
                 <SaleCashReport />
               </PrivateRoute>} 
             />
@@ -385,22 +313,11 @@ export default function App() {
             />
 
             <Route index path="/report/sale/due" element={
-              <PrivateRoute permissions={['report_sale_outstanding']}>
+              <PrivateRoute permissions={['report_sale']}>
                 <SaleOutstandingReport />
               </PrivateRoute>} 
             />
 
-            <Route index path="/report/bill" element={
-              <PrivateRoute permissions={['report_bill']}>  
-                <BillReport />
-              </PrivateRoute>} 
-            />
-            
-            <Route index path="/report/expense/container" element={
-              <PrivateRoute permissions={['report_container_expense']}>
-                <ExpenseContainerReport />
-              </PrivateRoute>} 
-            />
             <Route index path="/report/expense/office" element={
               <PrivateRoute permissions={['report_expense']}>
                 <ExpenseOfficeReport />
@@ -408,13 +325,13 @@ export default function App() {
             />
 
             <Route index path="/report/dailyProfitLoss" element={
-              <PrivateRoute permissions={['report_daily_profit']}>
+              <PrivateRoute permissions={['report_sale']}>
                 <DailyProfitLossReport />
               </PrivateRoute>} 
             />
 
             <Route index path="/report/profitLoss" element={
-              <PrivateRoute permissions={['report_profit']}>
+              <PrivateRoute permissions={['report_sale']}>
                 <ProfitLossReport />
               </PrivateRoute>} 
             />
@@ -563,49 +480,6 @@ export default function App() {
               </PrivateRoute>}
             />
 
-            {/* Sale for System 2 */}
-            <Route index path="/invoice/sell/create" element={
-              <PrivateRoute permissions={['create_sale_2']}>
-                <SellCreateForm />
-              </PrivateRoute>} 
-            />
-            <Route index path="/invoice/sell/:categoryId/list" element={
-              <PrivateRoute permissions={['manage_sale_2']}>
-                <SellList />
-              </PrivateRoute>} 
-            />
-            <Route index path="/invoice/sell/:id/edit" element={
-              <PrivateRoute permissions={['edit_sale_2']}>
-                <SellEditForm />
-              </PrivateRoute>} 
-            />
-            <Route index path="/report/sell" element={
-              <PrivateRoute permissions={['report_sale_2']}>
-                <SellReport />
-              </PrivateRoute>} 
-            />
-
-            {/* Payment for System 2*/}
-            <Route index path="/paymentSys2/create" element={
-              <PrivateRoute permissions={['create_payment_2']}>
-                <PaymentSys2CreateForm />
-              </PrivateRoute>} 
-            />
-            <Route index path="/paymentSys2/list" element={
-              <PrivateRoute permissions={['manage_payment_2']}>
-                <PaymentSys2List />
-              </PrivateRoute>} 
-            />
-            <Route index path="/paymentSys2/:id/edit" element={
-              <PrivateRoute permissions={['edit_payment_2']}>
-                <PaymentSys2EditForm />
-              </PrivateRoute>} 
-            />
-            <Route index path="/paymentSys2/:id/view" element={
-              <PrivateRoute permissions={['edit_payment_2']}>
-                <PaymentSys2View />
-              </PrivateRoute>} 
-            />
 
             <Route index path="/" element={<Home />} />
 

@@ -69,9 +69,7 @@ export default function InvoiceList() {
   };
 
   const handleEdit = (invoice: Invoice) => {
-    invoice.invoiceType === "clearance_bill"
-      ? navigate(`/bill/${invoice.id}/edit`)
-      : navigate(`/invoice/${invoice.id}/edit`);
+    navigate(`/invoice/${invoice.id}/edit`);
   };
 
   const handleListRefresh = () => {
@@ -189,12 +187,46 @@ export default function InvoiceList() {
               Refresh
           </button>
 
-          <button
-            onClick={() => {invoiceType === "sale" ? navigate('/invoice/sale/create') : invoiceType === "purchase" ? navigate('/invoice/purchase/create') : navigate('/invoice/all/create')}}
-            className="bg-lime-600 text-white px-2 py-1 rounded-full hover:bg-lime-900 mr-4"
-          >
-            Create
-          </button>
+          {invoiceType === "purchase" ? (
+            <>
+              <button
+                onClick={() => {navigate('/invoice/unfix_purchase/create')}}
+                className="bg-lime-600 text-white px-2 py-1 rounded-full hover:bg-lime-900 mr-4"
+              >
+                Unfix Purchase Add
+              </button>
+
+              <button
+                onClick={() => {navigate('/invoice/fix_purchase/create')}}
+                className="bg-emerald-600 text-white px-2 py-1 rounded-full hover:bg-emerald-900 mr-4"
+              >
+                Fix Purchase Add
+              </button>
+            </>
+          ) : invoiceType === "sale" ? (
+            <>
+              <button
+                onClick={() => {navigate('/invoice/unfix_sale/create')}}
+                className="bg-lime-600 text-white px-2 py-1 rounded-full hover:bg-lime-900 mr-4"
+              >
+                Unfix Sale Add
+              </button>
+
+              <button
+                onClick={() => {navigate('/invoice/fix_sale/create')}}
+                className="bg-emerald-600 text-white px-2 py-1 rounded-full hover:bg-emerald-900 mr-4"
+              >
+                Fix Sale Add
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => {navigate('/invoice/all/create')}}
+              className="bg-lime-600 text-white px-2 py-1 rounded-full hover:bg-lime-900 mr-4"
+            >
+              Create
+            </button>
+          )}
             
         </div>
       </div>
@@ -344,21 +376,21 @@ export default function InvoiceList() {
 
                           <MenuItems className="absolute right-0 z-50 mt-2 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-sky-500 ring-opacity-5 focus:outline-none">
                             <div className="py-1">
-                              { user?.role?.permissions?.some(p => ["view_invoice","view_purchase","view_sale"].includes(p.action)) && (
+                              { user?.role?.permissions?.some(p => ["view_purchase","view_sale"].includes(p.action)) && (
                                 <MenuItem>{({ active }) => (
                                   <button onClick={() => handleView(invoice)} className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'} flex w-full items-center gap-2 px-1 py-2 text-sm`}>
                                     <EyeIcon className="h-4 w-4" /> View
                                   </button>
                                 )}</MenuItem>
                               )}
-                              { user?.role?.permissions?.some(p => ["edit_invoice","edit_purchase","edit_sale"].includes(p.action)) && (
+                              { user?.role?.permissions?.some(p => ["edit_purchase","edit_sale"].includes(p.action)) && (
                                 <MenuItem>{({ active }) => (
                                   <button onClick={() => handleEdit(invoice)} className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'} flex w-full items-center gap-2 px-1 py-2 text-sm`}>
                                     <PencilIcon className="h-4 w-4" /> Edit
                                   </button>
                                 )}</MenuItem>
                               )}
-                              { user?.role?.permissions?.some(p => ["delete_invoice","delete_purchase","delete_sale"].includes(p.action)) && (
+                              { user?.role?.permissions?.some(p => ["delete_purchase","delete_sale"].includes(p.action)) && (
                                 <MenuItem>{({ active }) => (
                                   <button onClick={() => { setSelectedInvoice(invoice); openModal(); }} className={`${active ? 'bg-red-100 text-red-700' : 'text-red-600'} flex w-full items-center gap-2 px-1 py-2 text-sm`}>
                                     <TrashIcon className="h-4 w-4" /> Delete

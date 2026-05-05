@@ -592,7 +592,13 @@ export const getReceivablePayable = async () => {
 
 
 export const createParty = async (req) => {
-  const party = await Party.create(req.body);
+  const allowedTypes = ["party", "customer", "supplier"];
+  const payload = {
+    ...req.body,
+    type: allowedTypes.includes(req.body?.type) ? req.body.type : "party",
+  };
+
+  const party = await Party.create(payload);
   return party;
 }
 

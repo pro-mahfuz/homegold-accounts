@@ -18,7 +18,6 @@ import { Stock } from "../features/stockTypes.ts";
 
 import { update, fetchById } from "../features/stockThunks.ts";
 import { fetchAllInvoice } from "../../invoice/features/invoiceThunks.ts";
-import { fetchAll as fetchContainer } from "../../container/features/containerThunks.ts";
 import { fetchAllItem } from "../../item/features/itemThunks.ts";
 import { fetchAllWarehouse } from "../../warehouse/features/warehouseThunks.ts";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
@@ -30,7 +29,6 @@ import { selectUserById } from "../../user/features/userSelectors.ts";
 import { selectAllInvoice } from "../../invoice/features/invoiceSelectors.ts";
 import { selectAllItem } from "../../item/features/itemSelectors.ts";
 import { selectAllWarehouse } from "../../warehouse/features/warehouseSelectors.ts";
-import { selectAllContainer } from "../../container/features/containerSelectors";
 import { selectStockById } from "../features/stockSelectors";
 import { selectAllCategory } from "../../category/features/categorySelectors";
 import { selectAllAccount } from "../../account/features/accountSelectors.ts";
@@ -48,7 +46,6 @@ export default function StockEditForm() {
         if (invoices.length === 0) {
             dispatch(fetchAllInvoice());
         }
-        dispatch(fetchContainer());
         dispatch(fetchAllWarehouse());
         dispatch(fetchAllCategory());
         dispatch(fetchAllItem());
@@ -67,7 +64,6 @@ export default function StockEditForm() {
     const categories = useSelector(selectAllCategory);
     const paymentAccounts = useSelector(selectAllAccount);
     const UnitOptions = useSelector(selectAllUnitByBusiness(Number(user?.business?.id)));
-    const containers = useSelector(selectAllContainer);
     const parties = useSelector(selectAllParties);
 
     const [formData, setFormData] = useState<Stock>({
@@ -331,36 +327,7 @@ export default function StockEditForm() {
                     />
                 </div>
 
-                {selectedCategoryName !== "" && !["currency", "gold"].includes(selectedCategoryName) && (
-                <div>
-                    <Label>Select Container</Label>
-                    <Select
-                        options={containers.map((c) => ({
-                            label: `${c.containerNo}`,
-                            value: c.id,
-                        })) || []}
-                        placeholder="Search and select item"
-                        value={
-                            containers
-                            .map((c) => ({
-                                label: `${c.containerNo}`,
-                                value: c.id,
-                            }))
-                            .find((opt) => opt.value === formData.containerId) || null
-                        }
-                        onChange={(selectedOption) =>
-                            setFormData((prev) => ({
-                                ...prev,
-                                containerId: selectedOption?.value ?? null,
-                            }))
-                        }
-                        isClearable
-                        styles={selectStyles}
-                        classNamePrefix="react-select"
-                    />
-                </div>
-                )}
-
+                
                 {/* Paid Amount */}
                 <div>
                     <Label>Quantity</Label>

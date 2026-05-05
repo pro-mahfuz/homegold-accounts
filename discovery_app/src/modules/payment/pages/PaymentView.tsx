@@ -94,8 +94,7 @@ export default function PaymentView() {
     };
 
     const handleList = (payment: Payment) => {
-        //navigate(`/paymentSys2/list`)
-        payment.system === 1 ? navigate(`/payment/list`) : navigate(`/paymentSys2/list`);
+        payment.system === 1 ? navigate(`/payment/list`) : navigate(`/payment/list`);
     };
 
     return (

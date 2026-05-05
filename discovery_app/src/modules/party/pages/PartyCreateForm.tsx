@@ -20,6 +20,7 @@ import { selectUserById } from "../../user/features/userSelectors";
 
 export default function PartyCreateForm() {
   const { partyType = 'party' } = useParams() as { partyType?: 'party' | 'customer' | 'supplier' };
+  const resolvedPartyType = partyType === "supplier" || partyType === "customer" ? partyType : "party";
   
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function PartyCreateForm() {
   
   const [formData, setFormData] = useState<Party>({
     businessId: 0,
-    type: 'party',
+    type: resolvedPartyType,
     name: '',
     email: '',
     countryCode: '',
@@ -54,10 +55,10 @@ export default function PartyCreateForm() {
       setFormData((prev) => ({
         ...prev,
         businessId: user?.business?.id,
-        type: partyType
+        type: resolvedPartyType
       }));
     }
-  }, [user, partyType]);
+  }, [user, resolvedPartyType]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -101,9 +102,14 @@ export default function PartyCreateForm() {
     // }
 
     try {
-      await dispatch(createParty(formData));
+      const payload: Party = {
+        ...formData,
+        type: resolvedPartyType,
+      };
+
+      await dispatch(createParty(payload));
       toast.success("Party created successfully!");
-      navigate(`/party/${formData.type}/list`);
+      navigate(`/party/${payload.type}/list`);
     } catch (err) {
       toast.error("Failed to create party.");
       console.error("Submit error:", err);
@@ -112,8 +118,8 @@ export default function PartyCreateForm() {
 
   return (
     <div>
-      <PageMeta title={`${partyType ? partyType.charAt(0).toUpperCase() + partyType.slice(1).toLowerCase() : ''} Create`} description="Form to create new supplier or customer" />
-      <PageBreadcrumb pageTitle={`${partyType ? partyType.charAt(0).toUpperCase() + partyType.slice(1).toLowerCase() : ''} Create`} />
+      <PageMeta title={`${resolvedPartyType.charAt(0).toUpperCase() + resolvedPartyType.slice(1).toLowerCase()} Create`} description="Form to create new supplier or customer" />
+      <PageBreadcrumb pageTitle={`${resolvedPartyType.charAt(0).toUpperCase() + resolvedPartyType.slice(1).toLowerCase()} Create`} />
 
       <div className="mb-4 flex justify-start">
         <div>

@@ -18,7 +18,6 @@ import { Stock } from "../features/stockTypes.ts";
 
 import { create } from "../features/stockThunks.ts";
 import { fetchAllInvoice } from "../../invoice/features/invoiceThunks.ts";
-import { fetchAll as fetchContainer } from "../../container/features/containerThunks.ts";
 import { fetchAllItem } from "../../item/features/itemThunks.ts";
 import { fetchAllWarehouse } from "../../warehouse/features/warehouseThunks.ts";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
@@ -32,7 +31,6 @@ import { selectUserById } from "../../user/features/userSelectors.ts";
 import { selectAllInvoice } from "../../invoice/features/invoiceSelectors.ts";
 import { selectAllItem } from "../../item/features/itemSelectors.ts";
 import { selectAllWarehouse } from "../../warehouse/features/warehouseSelectors.ts";
-import { selectAllContainer } from "../../container/features/containerSelectors";
 import { selectAllCategory } from "../../category/features/categorySelectors";
 import { selectAllAccount } from "../../account/features/accountSelectors.ts";
 import { selectAllParties } from "../../party/features/partySelectors.ts";
@@ -46,7 +44,6 @@ export default function StockCreateForm() {
         if(invoices.length === 0){
             dispatch(fetchAllInvoice());
         }
-        dispatch(fetchContainer());
         dispatch(fetchAllWarehouse());
         dispatch(fetchAllCategory());
         dispatch(fetchAllItem());
@@ -89,7 +86,6 @@ export default function StockCreateForm() {
     const isTransferMovement = ["stock_transfer", "stock_transfer_return"].includes(formData.movementType);
     const isTransferReturn = formData.movementType === "stock_transfer_return";
 
-    const containers = useSelector(selectAllContainer);
 
     useEffect(() => {
         if (user?.business?.id) {
@@ -313,38 +309,6 @@ export default function StockCreateForm() {
                         required
                     />
                 </div>
-
-                {selectedCategoryName !== "" && !["currency", "gold"].includes(selectedCategoryName) && (
-                    <div>
-                        <Label>Select Container</Label>
-                        <Select
-                            options={containers.map((i) => ({
-                                label: `${i.containerNo}`,
-                                value: i.id,
-                            })) || []}
-                            placeholder="Search and select item"
-                            value={
-                                containers
-                                .map((i) => ({
-                                    label: `${i.containerNo}`,
-                                    value: i.id,
-                                }))
-                                .find((opt) => opt.value === formData.containerId) || null
-                            }
-                            onChange={(selectedOption) =>
-                                setFormData((prev) => ({
-                                    ...prev,
-                                    containerId: selectedOption?.value ?? null,
-                                }))
-                            }
-                            isClearable
-                            styles={selectStyles}
-                            classNamePrefix="react-select"
-                            required
-                        />
-
-                    </div>
-                )}
 
                 {/* Paid Amount */}
                 <div>

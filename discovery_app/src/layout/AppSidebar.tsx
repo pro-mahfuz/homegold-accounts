@@ -64,41 +64,11 @@ const AppSidebar: React.FC<any> = () => {
       ],
     },
     {
-      name: "Container",
-      icon: <ListIcon />,
-      permission:"manage_container",
-      subItems: [
-        { name: "Container List", path: "/container/0/list", pro: false, permission:"manage_container" },
-        { name: "Container Add", path: "/container/create", pro: false, permission:"create_container" }
-      ],
-    },
-    {
       name: "Party",
       icon: <ListIcon />,
       subItems: [
         { name: "Party List", path: "/party/all/list", pro: false, permission: "manage_party" },
         { name: "Party Add", path: "/party/create", pro: false, permission: "create_party" },
-        { name: "Party Summary", path: "/report/all/statement", permission:"statement_summary_party" },
-      ],
-    },
-    {
-      name: "Supplier",
-      icon: <ListIcon />,
-      permission:"manage_supplier",
-      subItems: [
-        { name: "Supplier List", path: "/party/supplier/list", pro: false, permission:"manage_supplier" },
-        { name: "Supplier Add", path: "/party/supplier/create", pro: false, permission:"create_supplier" },
-        { name: "Supplier Summary", path: "/report/supplier/statement", permission:"statement_summary_supplier" },
-      ],
-    },
-    {
-      name: "Customer",
-      icon: <ListIcon />,
-      permission:"manage_customer",
-      subItems: [
-        { name: "Customer List", path: "/party/customer/list", pro: false, permission:"manage_customer" },
-        { name: "Customer Add", path: "/party/customer/create", pro: false, permission:"create_customer" },
-        { name: "Customer Summary", path: "/report/customer/statement", permission:"statement_summary_customer" },
       ],
     },
     {
@@ -108,21 +78,13 @@ const AppSidebar: React.FC<any> = () => {
       permission:"manage_ledger",
     },
     {
-      name: "Invoice",
-      icon: <ListIcon />,
-      permission: "manage_invoice",
-      subItems: [
-        { name: "Invoice List", path: "/invoice/all/0/list", pro: false, permission: "manage_invoice" },
-        { name: "Invoice Add", path: "/invoice/all/create", pro: false, permission: "create_invoice" },
-      ],
-    },
-    {
       name: "Purchase",
       icon: <ListIcon />,
       permission:"manage_purchase",
       subItems: [
         { name: "Purchase List", path: "/invoice/purchase/0/list", pro: false, permission:"manage_purchase" },
-        { name: "Purchase Add", path: "/invoice/purchase/create", pro: false, permission:"create_purchase" }
+        { name: "Unfix Purchase Add", path: "/invoice/unfix_purchase/create", pro: false, permission:"create_purchase" },
+        { name: "Fix Purchase Add", path: "/invoice/fix_purchase/create", pro: false, permission:"create_purchase" }
       ],
     },
     {
@@ -131,16 +93,8 @@ const AppSidebar: React.FC<any> = () => {
       permission:"manage_sale",
       subItems: [
         { name: "Sale List", path: "/invoice/sale/0/list", pro: false, permission:"manage_sale" },
-        { name: "Sale Add", path: "/invoice/sale/create", pro: false, permission:"create_sale" }
-      ],
-    },
-    {
-      name: "Sell",
-      icon: <ListIcon />,
-      permission:"manage_sale_2",
-      subItems: [
-        { name: "Sell List", path: "/invoice/sell/0/list", pro: false, permission:"manage_sale_2" },
-        { name: "Sell Add", path: "/invoice/sell/create", pro: false, permission:"create_sale_2" }
+        { name: "Unfix Sale Add", path: "/invoice/unfix_sale/create", pro: false, permission:"create_sale" },
+        { name: "Fix Sale Add", path: "/invoice/fix_sale/create", pro: false, permission:"create_sale" }
       ],
     },
     {
@@ -152,12 +106,12 @@ const AppSidebar: React.FC<any> = () => {
         { name: "Stock Add", path: "/stock/create", pro: false, permission:"create_stock", }
       ],
     },
-    {
-      name: "Gold Price In",
-      icon: <ListIcon />,
-      path: "/gold-price-in/list",
-      permission: "manage_dashboard",
-    },
+    // {
+    //   name: "Gold Price In",
+    //   icon: <ListIcon />,
+    //   path: "/gold-price-in/list",
+    //   permission: "manage_dashboard",
+    // },
     {
       name: "Payments",
       icon: <ListIcon />,
@@ -165,24 +119,6 @@ const AppSidebar: React.FC<any> = () => {
       subItems: [
         { name: "Payment List", path: "/payment/list", pro: false, permission:"manage_payment" },
         { name: "Payment Add", path: "/payment/create", pro: false, permission:"create_payment" }
-      ],
-    },
-    {
-      name: "Payment",
-      icon: <ListIcon />,
-      permission:"manage_payment_2",
-      subItems: [
-        { name: "Payment List", path: "/paymentSys2/list", pro: false, permission:"manage_payment_2" },
-        { name: "Payment Add", path: "/paymentSys2/create", pro: false, permission:"create_payment_2" }
-      ],
-    },
-    {
-      name: "Bill (Clearance)",
-      icon: <ListIcon />,
-      permission:"manage_bill",
-      subItems: [
-        { name: "Bill (Clearance) List", path: "/bill/list", pro: false, permission:"manage_bill" },
-        { name: "Bill (Clearance) Add", path: "/bill/create", pro: false, permission:"create_bill" }
       ],
     },
     {
@@ -202,18 +138,9 @@ const AppSidebar: React.FC<any> = () => {
         { name: "Purchase Report", path: "/report/purchase", permission:"report_purchase" },
         { name: "Payment Transaction", path: "/report/purchase/cash-payment", permission:"report_purchase_cash_payment" },
         { name: "Sale Report", path: "/report/sale", permission:"report_sale" },
-        { name: "Sale Statement", path: "/report/sale/statement", permission:"report_sale_statement" },
-        { name: "Sell Report", path: "/report/sell", permission:"report_sale_2" },
-        { name: "Sale (Container) Report", path: "/report/sale/container", permission:"report_sale_container" },
         { name: "Received Transaction", path: "/report/sale/cash-collection", permission:"report_sale_cash_collection" },
-        { name: "Sale Cash Report", path: "/report/sale/cash-report", permission:"report_sale_cash" },
-        { name: "Sale Outstanding", path: "/report/sale/due", permission:"report_sale_outstanding" },
         { name: "Stock Report", path: "/report/stock", permission:"report_stock" },
-        { name: "Bill Report", path: "/report/bill", permission:"report_bill" }, // report_bill
-        { name: "Expense (Container) Report", path: "/report/expense/container", permission:"report_container_expense" }, 
-        { name: "Expense (Office) Report", path: "/report/expense/office", permission:"report_expense" },
-        { name: "Daily Profit/Loss Report", path: "/report/dailyProfitLoss", permission:"report_daily_profit" },
-        { name: "Profit/Loss Report", path: "/report/profitLoss", permission:"report_profit" },
+        { name: "Expense Report", path: "/report/expense/office", permission:"report_expense" },
         { name: "Receivable & Payable", path: "/report/receivable", permission:"report_receivable" },
         // { name: "Payable Report", path: "/report/payable", permission:"report_payable" },
         { name: "Balance Report", path: "/report/balance/statement", permission:"report_balance" },

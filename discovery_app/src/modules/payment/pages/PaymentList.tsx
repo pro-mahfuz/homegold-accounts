@@ -224,8 +224,7 @@ export default function PaymentList() {
                                   </button>
                                 )}
                               </MenuItem> */}
-                              {/* { user?.role?.permissions?.some(p => p.action === "view_invoice" || p.action === "view_purchase" || p.action === "view_sale") && ( */}
-                                <MenuItem>
+                              <MenuItem>
                                   {({ active }) => (
                                     <button
                                       onClick={() => handleView(payment)}
