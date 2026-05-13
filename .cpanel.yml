@@ -1,16 +1,6 @@
 deployment:
   tasks:
-    # - export API_DEPLOYPATH=/home/shmggxcp/shm_api_test/
-    # - /bin/cp -r ./discovery_api/* $API_DEPLOYPATH
-    # - export APP_DEPLOYPATH=/home/shmggxcp/public_html/
-    # - /bin/cp -r ./discovery_app/dist/* $APP_DEPLOYPATH
-
     - export API_DEPLOYPATH=/home/discdlfx/testapi.discovery-inventory.com/
     - /bin/cp -r ./homegold-accounts-api/* $API_DEPLOYPATH
     - export APP_DEPLOYPATH=/home/discdlfx/test.discovery-inventory.com/
     - /bin/cp -r ./homegold-accounts-app/dist/* $APP_DEPLOYPATH
-
-    # - export API_DEPLOYPATH=/home/furqrbqv/accounts_api/
-    # - /bin/cp -r ./discovery_api/* $API_DEPLOYPATH
-    # - export APP_DEPLOYPATH=/home/furqrbqv/accounts.furqanjewelry.com/
-    # - /bin/cp -r ./discovery_app/dist/* $APP_DEPLOYPATH
