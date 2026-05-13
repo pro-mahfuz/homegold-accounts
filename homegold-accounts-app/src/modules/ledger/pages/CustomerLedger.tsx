@@ -77,19 +77,6 @@ export default function CustomerLedger() {
       .filter(({ amount }) => Math.abs(amount) >= 0.01)
       .sort((a, b) => a.label.localeCompare(b.label));
 
-  const getStockEntryColorClass = (
-    ledger: { transactionType?: string | null },
-    entryType: "debit" | "credit"
-  ) => {
-    const transactionType = String(ledger.transactionType || "").toLowerCase();
-    const isPurchaseFixType = ["fix_purchase", "unfix_purchase"].includes(transactionType);
-
-    if (isPurchaseFixType) {
-      return entryType === "debit" ? "text-green-700" : "text-red-500";
-    }
-
-    return entryType === "debit" ? "text-red-500" : "text-green-700";
-  };
 
   const getPartyLedgerStockBalanceDelta = (ledger: {
     debitQty?: number | null;
@@ -210,32 +197,6 @@ export default function CustomerLedger() {
     );
   };
 
-  const renderPreviousBalance = (
-    paymentEntries: GroupedBalanceEntry[],
-    stockEntries: GroupedBalanceEntry[]
-  ) => {
-    if (paymentEntries.length === 0 && stockEntries.length === 0) {
-      return "--";
-    }
-
-    return (
-      <div className="space-y-2 text-xs">
-        {paymentEntries.length > 0 && (
-          <div className="space-y-1">
-            <div className="font-medium text-gray-500">Payment</div>
-            {renderBalanceLines(paymentEntries)}
-          </div>
-        )}
-        {stockEntries.length > 0 && (
-          <div className="space-y-1">
-            <div className="font-medium text-gray-500">Stock</div>
-            {renderBalanceLines(stockEntries)}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const columnCount = hasStockCategory ? 12 : 9;
 
   return (
@@ -337,12 +298,7 @@ export default function CustomerLedger() {
                       </TableRow>
                     ) : (
                       visibleLedgers.map((ledger, index) => {
-                        const previousPaymentBalances = Array.isArray(ledger.previousPaymentBalances)
-                          ? ledger.previousPaymentBalances
-                          : [];
-                        const previousStockBalances = Array.isArray(ledger.previousStockBalances)
-                          ? ledger.previousStockBalances
-                          : [];
+                        
                         const cumulativePaymentBalances = Array.isArray(ledger.cumulativePaymentBalances)
                           ? ledger.cumulativePaymentBalances
                           : [];
