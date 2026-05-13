@@ -2,6 +2,18 @@
 import { Ledger, Party, Stock, Payment, Category } from "../../models/model.js";
 import { Op } from "sequelize";
 
+const getLedgerIncomingPaymentAmount = (ledger) => {
+  const transactionType = String(ledger.transactionType || "").toLowerCase();
+  return transactionType === "payment_in"
+    ? Number(ledger.debit) || 0
+    : Number(ledger.credit) || 0;
+};
+
+const getLedgerOutgoingPaymentAmount = (ledger) => {
+  const transactionType = String(ledger.transactionType || "").toLowerCase();
+  return transactionType === "payment_in" ? 0 : Number(ledger.debit) || 0;
+};
+
 export const getAllParty = async (type) => {
   try {
 
@@ -101,8 +113,8 @@ export const getAllPartyWithPagination = async (
           ["purchase", "payment_in", "sale", "payment_out", "fix_purchase", "unfix_purchase", "wholesale_purchase", "fix_sale", "unfix_sale", "wholesale_sale"]
             .includes(p.transactionType)
         ) {
-          acc[currency].paymentInSum += Number(p.credit) || 0;
-          acc[currency].paymentOutSum += Number(p.debit) || 0;
+          acc[currency].paymentInSum += getLedgerIncomingPaymentAmount(p);
+          acc[currency].paymentOutSum += getLedgerOutgoingPaymentAmount(p);
         }
 
         return acc;
@@ -198,9 +210,11 @@ export const getReceivablePayable = async () => {
           const currency = p.currency || "Unknown";
           if (!acc[currency]) acc[currency] = { currency, paymentCreditSum: 0, paymentDebitSum: 0, paymentReceivable: 0 };
           if (["sale", "payment_in"].includes(p.transactionType)) {
-            acc[currency].paymentCreditSum += Number(p.credit) || 0;
-            acc[currency].paymentDebitSum += Number(p.debit) || 0;
-            acc[currency].paymentReceivable += (Number(p.credit) - Number(p.debit)) || 0;
+            const incomingAmount = getLedgerIncomingPaymentAmount(p);
+            const outgoingAmount = getLedgerOutgoingPaymentAmount(p);
+            acc[currency].paymentCreditSum += incomingAmount;
+            acc[currency].paymentDebitSum += outgoingAmount;
+            acc[currency].paymentReceivable += incomingAmount - outgoingAmount;
           }
           return acc;
         }, {})
@@ -211,9 +225,11 @@ export const getReceivablePayable = async () => {
           const currency = p.currency || "Unknown";
           if (!acc[currency]) acc[currency] = { currency, paymentCreditSum: 0, paymentDebitSum: 0, paymentPayable: 0 };
           if (["purchase", "payment_out"].includes(p.transactionType)) {
-            acc[currency].paymentCreditSum += Number(p.credit) || 0;
-            acc[currency].paymentDebitSum += Number(p.debit) || 0;
-            acc[currency].paymentPayable += (Number(p.credit) - Number(p.debit)) || 0;
+            const incomingAmount = getLedgerIncomingPaymentAmount(p);
+            const outgoingAmount = getLedgerOutgoingPaymentAmount(p);
+            acc[currency].paymentCreditSum += incomingAmount;
+            acc[currency].paymentDebitSum += outgoingAmount;
+            acc[currency].paymentPayable += incomingAmount - outgoingAmount;
           }
           return acc;
         }, {})

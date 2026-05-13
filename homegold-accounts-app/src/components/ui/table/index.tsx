@@ -31,6 +31,7 @@ interface TableCellProps {
   isHeader?: boolean; // If true, renders as <th>, otherwise <td>
   className?: string; // Optional className for styling
   colSpan?: number; // Optional colspan or rowspan attributes
+  rowSpan?: number;
 }
 
 // Props for SearchControls
@@ -79,10 +80,15 @@ const TableCell: React.FC<TableCellProps> = ({
   children,
   isHeader = false,
   colSpan,
+  rowSpan,
   className,
 }) => {
   const CellTag = isHeader ? "th" : "td";
-  return <CellTag className={` ${className}`} colSpan={colSpan}>{children}</CellTag>;
+  return (
+    <CellTag className={` ${className}`} colSpan={colSpan} rowSpan={rowSpan}>
+      {children}
+    </CellTag>
+  );
 };
 
 // SearchField Component

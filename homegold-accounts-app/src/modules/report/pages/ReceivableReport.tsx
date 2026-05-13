@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -15,6 +15,7 @@ import { selectReceivablePayable, selectPartyStatus } from "../../party/features
 import { fetchReceivablePayable } from "../../party/features/partyThunks.ts";
 import { selectAuth } from "../../auth/features/authSelectors";
 import { selectUserById } from "../../user/features/userSelectors";
+import { BalanceByCurrency } from "../../party/features/partyTypes.ts";
 
 export default function ReceivableReport() {
   const navigate = useNavigate();
@@ -27,8 +28,119 @@ export default function ReceivableReport() {
   const authUser = useSelector(selectAuth);
   const user = useSelector(selectUserById(Number(authUser.user?.id)));
   const data = useSelector(selectReceivablePayable);
-  console.log("data: ", data?.totals);
   const status = useSelector(selectPartyStatus);
+
+  const partiesWithBalance = useMemo(
+    () =>
+      (data?.parties || []).filter((party) =>
+        (party.summaryByCurrency || []).some(
+          (summary) =>
+            Number(summary.receivable || 0) >= 0.005 ||
+            Number(summary.payable || 0) >= 0.005
+        )
+      ),
+    [data]
+  );
+
+  const reportSummary = useMemo(() => {
+    if (data?.summary) {
+      return data.summary;
+    }
+
+    const totals = data?.totals || [];
+    return {
+      partyCount: data?.parties?.length || 0,
+      partiesWithBalance: partiesWithBalance.length,
+      receivablePartyCount: partiesWithBalance.filter(
+        (party) => (party.receivableByCurrency || []).length > 0
+      ).length,
+      payablePartyCount: partiesWithBalance.filter(
+        (party) => (party.payableByCurrency || []).length > 0
+      ).length,
+      currencies: totals.length,
+      totalReceivableByCurrency: totals
+        .filter((total) => Number(total.receivable || 0) >= 0.005)
+        .map((total) => ({ currency: total.currency, amount: Number(total.receivable) || 0 })),
+      totalPayableByCurrency: totals
+        .filter((total) => Number(total.payable || 0) >= 0.005)
+        .map((total) => ({ currency: total.currency, amount: Number(total.payable) || 0 })),
+    };
+  }, [data, partiesWithBalance]);
+
+  const renderBalanceEntries = (
+    entries: BalanceByCurrency[],
+    emptyLabel = "--"
+  ) => {
+    if (!entries || entries.length === 0) {
+      return emptyLabel;
+    }
+
+    return (
+      <div className="space-y-1">
+        {entries.map((entry) => (
+          <div key={`${entry.currency}-${entry.amount}`}>
+            {`${entry.currency}: ${Number(entry.amount || 0).toFixed(2)}`}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const receivableColumnLabels = useMemo(() => {
+    const labels = new Set<string>();
+
+    partiesWithBalance.forEach((party) => {
+      (party.receivableByCurrency || []).forEach((entry) => {
+        if (entry.currency) {
+          labels.add(entry.currency);
+        }
+      });
+    });
+
+    (reportSummary.totalReceivableByCurrency || []).forEach((entry) => {
+      if (entry.currency) {
+        labels.add(entry.currency);
+      }
+    });
+
+    const sortedLabels = Array.from(labels).sort((a, b) => a.localeCompare(b));
+    return sortedLabels.length > 0 ? sortedLabels : ["--"];
+  }, [partiesWithBalance, reportSummary]);
+
+  const payableColumnLabels = useMemo(() => {
+    const labels = new Set<string>();
+
+    partiesWithBalance.forEach((party) => {
+      (party.payableByCurrency || []).forEach((entry) => {
+        if (entry.currency) {
+          labels.add(entry.currency);
+        }
+      });
+    });
+
+    (reportSummary.totalPayableByCurrency || []).forEach((entry) => {
+      if (entry.currency) {
+        labels.add(entry.currency);
+      }
+    });
+
+    const sortedLabels = Array.from(labels).sort((a, b) => a.localeCompare(b));
+    return sortedLabels.length > 0 ? sortedLabels : ["--"];
+  }, [partiesWithBalance, reportSummary]);
+
+  const getBalanceAmountByLabel = (
+    entries: BalanceByCurrency[] | undefined,
+    label: string
+  ) => {
+    if (label === "--") {
+      return "--";
+    }
+
+    const matchedEntry = (entries || []).find((entry) => entry.currency === label);
+    return matchedEntry ? Number(matchedEntry.amount || 0).toFixed(2) : "--";
+  };
+
+  const totalColumnCount = 2 + receivableColumnLabels.length + payableColumnLabels.length;
 
   return (
     <>
@@ -81,38 +193,88 @@ export default function ReceivableReport() {
                 </div>
               </div>
 
+              <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-xl border border-gray-200 bg-slate-50 p-4">
+                  <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Total Parties</div>
+                  <div className="mt-2 text-2xl font-semibold text-gray-900">{reportSummary.partyCount}</div>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-slate-50 p-4">
+                  <div className="text-xs font-medium uppercase tracking-wide text-gray-500">With Balance</div>
+                  <div className="mt-2 text-2xl font-semibold text-gray-900">{reportSummary.partiesWithBalance}</div>
+                </div>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <div className="text-xs font-medium uppercase tracking-wide text-red-600">Receivable Parties</div>
+                  <div className="mt-2 text-2xl font-semibold text-red-600">{reportSummary.receivablePartyCount}</div>
+                </div>
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                  <div className="text-xs font-medium uppercase tracking-wide text-green-700">Payable Parties</div>
+                  <div className="mt-2 text-2xl font-semibold text-green-700">{reportSummary.payablePartyCount}</div>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-slate-50 p-4">
+                  <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Currencies</div>
+                  <div className="mt-2 text-2xl font-semibold text-gray-900">{reportSummary.currencies}</div>
+                </div>
+              </div>
+
+              <div className="mb-6 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <div className="mb-2 text-sm font-semibold text-red-600">Total Receivable</div>
+                  <div className="text-sm text-red-600">
+                    {renderBalanceEntries(reportSummary.totalReceivableByCurrency || [])}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                  <div className="mb-2 text-sm font-semibold text-green-700">Total Payable</div>
+                  <div className="text-sm text-green-700">
+                    {renderBalanceEntries(reportSummary.totalPayableByCurrency || [])}
+                  </div>
+                </div>
+              </div>
+
+              <div className="max-w-full overflow-x-auto">
               <Table>
                 <TableHeader className="border border-gray-500 dark:border-white/[0.05] bg-gray-200 text-black text-sm dark:bg-gray-800 dark:text-gray-400">
                     <TableRow>
-                    <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">SL</TableCell>
-                    <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">PARTY NAME</TableCell>
+                    <TableCell isHeader rowSpan={2} className="border border-gray-500 text-center px-2 py-1">SL</TableCell>
+                    <TableCell isHeader rowSpan={2} className="border border-gray-500 text-center px-2 py-1">PARTY NAME</TableCell>
 
-                    {/* Show Receivable & Payable Columns */}
-                    <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">RECEIVABLE</TableCell>
-                    <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">PAYABLE</TableCell>
+                    <TableCell isHeader colSpan={receivableColumnLabels.length} className="border border-gray-500 text-center px-2 py-1">RECEIVABLE</TableCell>
+                    <TableCell isHeader colSpan={payableColumnLabels.length} className="border border-gray-500 text-center px-2 py-1">PAYABLE</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      {receivableColumnLabels.map((label) => (
+                        <TableCell
+                          key={`receivable-header-${label}`}
+                          isHeader
+                          className="border border-gray-500 text-center px-2 py-1"
+                        >
+                          {label}
+                        </TableCell>
+                      ))}
+                      {payableColumnLabels.map((label) => (
+                        <TableCell
+                          key={`payable-header-${label}`}
+                          isHeader
+                          className="border border-gray-500 text-center px-2 py-1"
+                        >
+                          {label}
+                        </TableCell>
+                      ))}
                     </TableRow>
                 </TableHeader>
 
                 <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                     {status === "loading" ? (
                         <TableRow>
-                        <TableCell colSpan={4} className="text-center py-4 text-gray-500 dark:text-gray-300">
+                        <TableCell colSpan={totalColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
                             Loading data...
                         </TableCell>
                         </TableRow>
                     ) : (
                       <>
-                        {data?.parties
-                          // keep only parties that have at least one non-zero balance
-                          .filter(
-                            (party) =>
-                              party.summaryByCurrency.some(
-                                (r) => Math.abs(Number(r.netBalance)) >= 0.005 // threshold for "non-zero"
-                              )
-                          )
-                          .map((party, index) => (
+                        {partiesWithBalance.map((party, index) => (
                             <TableRow
-                              key={index}
+                              key={party.id || index}
                               className="border-b border-gray-100 dark:border-white/[0.05]"
                             >
                               <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
@@ -123,47 +285,55 @@ export default function ReceivableReport() {
                                 {party.name}
                               </TableCell>
 
-                              {/* Receivable */}
-                              <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-red-500 dark:text-gray-400">
-                                {party.summaryByCurrency
-                                  .filter(
-                                    (r) =>
-                                      Number(r.netBalance) < 0 &&
-                                      Math.abs(Number(r.netBalance)) >= 0.005
-                                  )
-                                  .map((r) => `${r.currency}: ${Number(r.netBalance).toFixed(2)}`)
-                                  .join(", ") || "--"}
-                              </TableCell>
+                              {receivableColumnLabels.map((label) => (
+                                <TableCell
+                                  key={`party-${party.id || index}-receivable-${label}`}
+                                  className="border border-gray-500 px-2 py-1 text-sm text-red-500 text-right align-top"
+                                >
+                                  {getBalanceAmountByLabel(party.receivableByCurrency, label)}
+                                </TableCell>
+                              ))}
 
-                              {/* Payable */}
-                              <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-green-700 dark:text-gray-400">
-                                {party.summaryByCurrency
-                                  .filter(
-                                    (r) =>
-                                      Number(r.netBalance) > 0 &&
-                                      Math.abs(Number(r.netBalance)) >= 0.005
-                                  )
-                                  .map((r) => `${r.currency}: ${Number(r.netBalance).toFixed(2)}`)
-                                  .join(", ") || "--"}
-                              </TableCell>
+                              {payableColumnLabels.map((label) => (
+                                <TableCell
+                                  key={`party-${party.id || index}-payable-${label}`}
+                                  className="border border-gray-500 px-2 py-1 text-sm text-green-700 text-right align-top"
+                                >
+                                  {getBalanceAmountByLabel(party.payableByCurrency, label)}
+                                </TableCell>
+                              ))}
                             </TableRow>
                           ))}
+
                         <TableRow>
-                        <TableCell isHeader colSpan={4} className="text-center py-4 text-gray-500 dark:text-gray-300">
-                            TOTAL SUMMARY
-                        </TableCell>
+                          <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
+                            --
+                          </TableCell>
+                          <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm font-bold text-gray-700 dark:text-gray-300">
+                            TOTAL
+                          </TableCell>
+                          {receivableColumnLabels.map((label) => (
+                            <TableCell
+                              key={`total-receivable-${label}`}
+                              className="border border-gray-500 px-2 py-1 text-sm text-red-500 text-right align-top font-bold"
+                            >
+                              {getBalanceAmountByLabel(reportSummary.totalReceivableByCurrency, label)}
+                            </TableCell>
+                          ))}
+                          {payableColumnLabels.map((label) => (
+                            <TableCell
+                              key={`total-payable-${label}`}
+                              className="border border-gray-500 px-2 py-1 text-sm text-green-700 text-right align-top font-bold"
+                            >
+                              {getBalanceAmountByLabel(reportSummary.totalPayableByCurrency, label)}
+                            </TableCell>
+                          ))}
                         </TableRow>
-                        {data?.totals.map((t, i) => (
-                          <TableRow key={i}>
-                            <TableCell isHeader colSpan={2} className="text-sm border border-gray-500 text-right px-2 py-1">{String(t.currency)}</TableCell>
-                            <TableCell isHeader className="text-sm border border-gray-500 text-red-500 text-center px-2 py-1">{Number(t.receivable) === 0 ? "--" : Number(t.receivable).toFixed(2)}</TableCell>
-                            <TableCell isHeader className="text-sm border border-gray-500 text-green-700 text-center px-2 py-1">{Number(t.payable) === 0 ? "--" : Number(t.payable).toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
                       </>
                     )}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </div>
         </div>

@@ -2,9 +2,9 @@ import { Payment, User, Party, Category, Invoice, Bank, Ledger, sequelize } from
 import { Op, Sequelize } from "sequelize";
 
 const PAYMENT_CREDIT_TYPES = new Set([
-  "payment_in",
+  "payment_out",
   "advance_received",
-  "payable",
+  "receivable",
   "advance_payment_deduct",
   "capital_in",
   "discount_sale",
@@ -14,9 +14,9 @@ const PAYMENT_CREDIT_TYPES = new Set([
 ]);
 
 const PAYMENT_DEBIT_TYPES = new Set([
-  "payment_out",
+  "payment_in",
   "advance_payment",
-  "receivable",
+  "payable",
   "advance_received_deduct",
   "capital_out",
   "discount_purchase",

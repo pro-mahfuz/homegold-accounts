@@ -8,6 +8,29 @@ const compareLedgerAscending = (a: Ledger, b: Ledger) => {
   return (a.id || 0) - (b.id || 0);
 };
 
+const getLedgerPaymentBalanceDelta = (
+  ledger: Pick<Ledger, "transactionType" | "debit" | "credit">
+) => {
+  const transactionType = String(ledger.transactionType || "").toLowerCase();
+  const debit = Number(ledger.debit || 0);
+  const credit = Number(ledger.credit || 0);
+
+  if (["payment_in", "payment_out", "payable", "receivable"].includes(transactionType)) {
+    return debit - credit;
+  }
+
+  return credit - debit;
+};
+
+const getLedgerRunningBalance = (
+  ledger: Pick<Ledger, "transactionType" | "debit" | "credit" | "debitQty" | "creditQty">
+) => {
+  const debitQty = Number(ledger.debitQty || 0);
+  const creditQty = Number(ledger.creditQty || 0);
+
+  return getLedgerPaymentBalanceDelta(ledger) + (creditQty - debitQty);
+};
+
 export const selectLedgerStatus = (state: RootState) => state.ledger.status;
 export const selectLedgerError = (state: RootState) => state.ledger.error;
 export const selectAllLedger = (state: RootState): Ledger[] => state.ledger.data || [];
@@ -61,17 +84,9 @@ export const selectAccountLedgers = (
     const sortedLedgers = [...filteredLedgers].sort(compareLedgerAscending);
 
     const withBalance = sortedLedgers.map((l) => {
-      const debit = Number(l.debit || 0);
-      const credit = Number(l.credit || 0);
-      const debitQty = Number(l.debitQty || 0);
-      const creditQty = Number(l.creditQty || 0);
-
-      // Increase or decrease balance
-      const runningBalance = (credit + creditQty) - (debit + debitQty);
-
       return {
         ...l,
-        runningBalance,
+        runningBalance: getLedgerRunningBalance(l),
       };
     });
 
@@ -134,16 +149,9 @@ export const selectLedgerByPartyType = (
 
     // Step 3: Calculate cumulative running balance
     const withBalance = filteredLedgers.map((l) => {
-      const debit = Number(l.debit || 0);
-      const credit = Number(l.credit || 0);
-      const debitQty = Number(l.debitQty || 0);
-      const creditQty = Number(l.creditQty || 0);
-
-      const runningBalance = (credit + creditQty) - (debit + debitQty);
-
       return {
         ...l,
-        runningBalance,
+        runningBalance: getLedgerRunningBalance(l),
       };
     });
 

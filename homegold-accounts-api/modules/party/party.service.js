@@ -2,6 +2,69 @@
 import { Ledger, Party, Stock, Payment, Category, sequelize } from "../../models/model.js";
 import { Op } from "sequelize";
 
+const normalizeReportAmount = (value) => {
+  const normalizedValue = Number(value) || 0;
+  if (Math.abs(normalizedValue) < 0.005) {
+    return 0;
+  }
+
+  return Number(normalizedValue.toFixed(2));
+};
+
+const createEmptyReceivablePayableResponse = (message) => ({
+  parties: [],
+  totals: [],
+  summary: {
+    partyCount: 0,
+    partiesWithBalance: 0,
+    receivablePartyCount: 0,
+    payablePartyCount: 0,
+    currencies: 0,
+    totalReceivableByCurrency: [],
+    totalPayableByCurrency: [],
+  },
+  message,
+});
+
+const getReceivablePayableBusinessWhere = (req) => {
+  const requestedBusinessId = Number(req?.query?.businessId) || 0;
+  const authBusinessId = Number(req?.user?.businessId) || 0;
+  const roleId = Number(req?.user?.roleId) || 0;
+
+  if (roleId === 1 && requestedBusinessId > 0) {
+    return { businessId: requestedBusinessId };
+  }
+
+  if (authBusinessId > 0) {
+    return { businessId: authBusinessId };
+  }
+
+  if (requestedBusinessId > 0) {
+    return { businessId: requestedBusinessId };
+  }
+
+  return {};
+};
+
+const createReceivablePayableSummaryBucket = (currency) => ({
+  currency,
+  stockDebitSum: 0,
+  stockCreditSum: 0,
+  paymentDebitSum: 0,
+  paymentCreditSum: 0,
+  advanceInSum: 0,
+  advanceOutSum: 0,
+  netBalance: 0,
+});
+
+const ensureReceivablePayableSummaryBucket = (collection, currency) => {
+  if (!collection[currency]) {
+    collection[currency] = createReceivablePayableSummaryBucket(currency);
+  }
+
+  return collection[currency];
+};
+
 export const getAllParty = async (type) => {
   try {
     if (!type) {
@@ -429,147 +492,188 @@ export const getAllPartyWithPagination = async (page = 1, limit = 10, type = "",
 //   }
 // };
 
-export const getReceivablePayable = async () => {
+export const getReceivablePayable = async (req = null) => {
   try {
-    const parties = await Party.findAll({
-      include: [{ model: Ledger, as: "ledgers" }],
+    const businessWhere = getReceivablePayableBusinessWhere(req);
+    const ledgers = await Ledger.findAll({
+      where: {
+        partyId: {
+          [Op.not]: null,
+        },
+        isDeleted: false,
+        ...businessWhere,
+      },
+      include: [
+        {
+          model: Party,
+          as: "party",
+          required: true,
+          where: businessWhere,
+        },
+      ],
+      order: [
+        ["partyId", "ASC"],
+        ["date", "ASC"],
+        ["id", "ASC"],
+      ],
     });
 
-    if (!parties || parties.length === 0) {
-      return { parties: [], totals: [], message: "No parties found" };
+    if (!ledgers || ledgers.length === 0) {
+      return createEmptyReceivablePayableResponse("No ledger data found");
     }
 
+    const partiesById = {};
     const totalsByCurrency = {};
 
-    const result = parties.map((party) => {
-      const mergedSummary = {};
+    ledgers.forEach((ledger) => {
+      const partyId = Number(ledger.partyId) || 0;
+      const party = ledger.party?.toJSON?.() || null;
 
-      (party.ledgers || []).forEach((l) => {
-        const currency = l.currency || "Unknown";
-        const stockCurrency = l.stockCurrency || currency;
+      if (!partyId || !party) {
+        return;
+      }
 
-        // Helper to initialize object
-        const ensureCurrency = (key) => {
-          if (!mergedSummary[key]) {
-            mergedSummary[key] = {
-              currency: key,
-              stockDebitSum: 0,
-              stockCreditSum: 0,
-              paymentDebitSum: 0,
-              paymentCreditSum: 0,
-              advanceInSum: 0,
-              advanceOutSum: 0,
-              netBalance: 0,
-            };
-          }
+      if (!partiesById[partyId]) {
+        partiesById[partyId] = {
+          ...party,
+          summaryMap: {},
         };
+      }
 
-        // --- Define transaction groups ---
-        const stockTransactions = [
-          "purchase",
-          "wholesale_purchase",
-          "fix_purchase",
-          "unfix_purchase",
-          "sale",
-          "wholesale_sale",
-          "fix_sale",
-          "unfix_sale",
-          "stock_in",
-          "stock_out",
-        ];
+      const summaryMap = partiesById[partyId].summaryMap;
+      const currency = ledger.currency || "Unknown";
+      const stockCurrency = ledger.stockCurrency || currency;
+      const debit = Number(ledger.debit) || 0;
+      const credit = Number(ledger.credit) || 0;
+      const debitQty = Number(ledger.debitQty) || 0;
+      const creditQty = Number(ledger.creditQty) || 0;
+      const hasMoneyEntry = Math.abs(debit) >= 0.005 || Math.abs(credit) >= 0.005;
+      const hasStockEntry = Math.abs(debitQty) >= 0.005 || Math.abs(creditQty) >= 0.005;
 
-        const paymentTransactions = [
-          "payment_in",
-          "payment_out",
-          "purchase",
-          "wholesale_purchase",
-          "fix_purchase",
-          "unfix_purchase",
-          "sale",
-          "wholesale_sale",
-          "fix_sale",
-          "unfix_sale",
-        ];
+      if (hasMoneyEntry) {
+        const summary = ensureReceivablePayableSummaryBucket(summaryMap, currency);
+        summary.paymentDebitSum += debit;
+        summary.paymentCreditSum += credit;
+      }
 
-        const advanceInTransactions = [
-          "advance_received",
-          "advance_payment_deduct",
-          "payable",
-        ];
+      if (hasStockEntry) {
+        const summary = ensureReceivablePayableSummaryBucket(summaryMap, stockCurrency);
+        summary.stockDebitSum += debitQty;
+        summary.stockCreditSum += creditQty;
+      }
+    });
 
-        const advanceOutTransactions = [
-          "advance_payment",
-          "advance_received_deduct",
-          "receivable",
-        ];
+    const result = Object.values(partiesById).map((party) => {
+      const summaryByCurrency = Object.values(party.summaryMap)
+        .map((summary) => {
+          const stockDebitSum = normalizeReportAmount(summary.stockDebitSum);
+          const stockCreditSum = normalizeReportAmount(summary.stockCreditSum);
+          const paymentDebitSum = normalizeReportAmount(summary.paymentDebitSum);
+          const paymentCreditSum = normalizeReportAmount(summary.paymentCreditSum);
+          const advanceInSum = normalizeReportAmount(summary.advanceInSum);
+          const advanceOutSum = normalizeReportAmount(summary.advanceOutSum);
 
-        // --- STOCK TRANSACTIONS ---
-        if (stockTransactions.includes(l.transactionType)) {
-          ensureCurrency(stockCurrency);
+          const stockNet = normalizeReportAmount(stockCreditSum - stockDebitSum);
+          const paymentNet = normalizeReportAmount(paymentDebitSum - paymentCreditSum);
+          const stockReceivable = stockNet > 0 ? stockNet : 0;
+          const stockPayable = stockNet < 0 ? Math.abs(stockNet) : 0;
+          const paymentReceivable = paymentNet < 0 ? Math.abs(paymentNet) : 0;
+          const paymentPayable = paymentNet > 0 ? paymentNet : 0;
+          const advanceNet = normalizeReportAmount(advanceInSum - advanceOutSum);
+          const receivable = normalizeReportAmount(stockReceivable + paymentReceivable);
+          const payable = normalizeReportAmount(stockPayable + paymentPayable);
+          const netBalance = normalizeReportAmount(payable - receivable);
 
-          mergedSummary[stockCurrency].stockDebitSum += Number(l.debitQty) || 0;
-          mergedSummary[stockCurrency].stockCreditSum += Number(l.creditQty) || 0;
-        }
-
-        // --- PAYMENT TRANSACTIONS ---
-        if (paymentTransactions.includes(l.transactionType)) {
-          ensureCurrency(currency);
-
-          mergedSummary[currency].paymentCreditSum += Number(l.credit) || 0;
-          mergedSummary[currency].paymentDebitSum += Number(l.debit) || 0;
-        }
-
-        // --- ADVANCE TRANSACTIONS ---
-        if (advanceInTransactions.includes(l.transactionType)) {
-          ensureCurrency(currency);
-          mergedSummary[currency].advanceInSum += Number(l.credit) || 0;
-        }
-
-        if (advanceOutTransactions.includes(l.transactionType)) {
-          ensureCurrency(currency);
-          mergedSummary[currency].advanceOutSum += Number(l.debit) || 0;
-        }
-      });
-
-      // --- Calculate net balances per currency ---
-      Object.values(mergedSummary).forEach((s) => {
-        s.netBalance =
-          (s.advanceInSum - s.advanceOutSum) +
-          (s.paymentCreditSum - s.paymentDebitSum) +
-          (s.stockDebitSum - s.stockCreditSum);
-
-        if (!totalsByCurrency[s.currency]) {
-          totalsByCurrency[s.currency] = {
-            currency: s.currency,
-            stockDebitSum: 0,
-            stockCreditSum: 0,
-            paymentDebitSum: 0,
-            paymentCreditSum: 0,
-            advanceInSum: 0,
-            advanceOutSum: 0,
-            receivable: 0,
-            payable: 0,
-            netBalance: 0,
+          return {
+            currency: summary.currency,
+            stockDebitSum,
+            stockCreditSum,
+            paymentDebitSum,
+            paymentCreditSum,
+            advanceInSum,
+            advanceOutSum,
+            stockNet,
+            paymentNet,
+            advanceNet,
+            stockReceivable,
+            stockPayable,
+            paymentReceivable,
+            paymentPayable,
+            netBalance,
+            receivable,
+            payable,
           };
+        })
+        .filter((summary) =>
+          [
+            summary.stockDebitSum,
+            summary.stockCreditSum,
+            summary.paymentDebitSum,
+            summary.paymentCreditSum,
+            summary.advanceInSum,
+            summary.advanceOutSum,
+            summary.receivable,
+            summary.payable,
+          ].some((value) => Math.abs(Number(value) || 0) >= 0.005)
+        )
+        .sort((a, b) => a.currency.localeCompare(b.currency));
+
+      summaryByCurrency.forEach((summary) => {
+        if (!totalsByCurrency[summary.currency]) {
+          totalsByCurrency[summary.currency] = createReceivablePayableSummaryBucket(
+            summary.currency
+          );
+          totalsByCurrency[summary.currency].stockNet = 0;
+          totalsByCurrency[summary.currency].paymentNet = 0;
+          totalsByCurrency[summary.currency].advanceNet = 0;
+          totalsByCurrency[summary.currency].stockReceivable = 0;
+          totalsByCurrency[summary.currency].stockPayable = 0;
+          totalsByCurrency[summary.currency].paymentReceivable = 0;
+          totalsByCurrency[summary.currency].paymentPayable = 0;
+          totalsByCurrency[summary.currency].receivable = 0;
+          totalsByCurrency[summary.currency].payable = 0;
         }
 
-        // Aggregate totals
-        const t = totalsByCurrency[s.currency];
-        t.stockDebitSum += s.stockDebitSum;
-        t.stockCreditSum += s.stockCreditSum;
-        t.paymentDebitSum += s.paymentDebitSum;
-        t.paymentCreditSum += s.paymentCreditSum;
-        t.advanceInSum += s.advanceInSum;
-        t.advanceOutSum += s.advanceOutSum;
-        t.netBalance += s.netBalance;
-
-        if (s.netBalance < 0) t.receivable += s.netBalance;
-        else t.payable += s.netBalance;
+        const total = totalsByCurrency[summary.currency];
+        total.stockDebitSum = normalizeReportAmount(total.stockDebitSum + summary.stockDebitSum);
+        total.stockCreditSum = normalizeReportAmount(total.stockCreditSum + summary.stockCreditSum);
+        total.paymentDebitSum = normalizeReportAmount(total.paymentDebitSum + summary.paymentDebitSum);
+        total.paymentCreditSum = normalizeReportAmount(total.paymentCreditSum + summary.paymentCreditSum);
+        total.advanceInSum = normalizeReportAmount(total.advanceInSum + summary.advanceInSum);
+        total.advanceOutSum = normalizeReportAmount(total.advanceOutSum + summary.advanceOutSum);
+        total.stockNet = normalizeReportAmount(total.stockNet + summary.stockNet);
+        total.paymentNet = normalizeReportAmount(total.paymentNet + summary.paymentNet);
+        total.advanceNet = normalizeReportAmount(total.advanceNet + summary.advanceNet);
+        total.stockReceivable = normalizeReportAmount(total.stockReceivable + (summary.stockReceivable || 0));
+        total.stockPayable = normalizeReportAmount(total.stockPayable + (summary.stockPayable || 0));
+        total.paymentReceivable = normalizeReportAmount(total.paymentReceivable + (summary.paymentReceivable || 0));
+        total.paymentPayable = normalizeReportAmount(total.paymentPayable + (summary.paymentPayable || 0));
+        total.netBalance = normalizeReportAmount(total.netBalance + summary.netBalance);
+        total.receivable = normalizeReportAmount(total.receivable + summary.receivable);
+        total.payable = normalizeReportAmount(total.payable + summary.payable);
       });
+
+      const receivableByCurrency = summaryByCurrency
+        .filter((summary) => summary.receivable > 0)
+        .map((summary) => ({
+          currency: summary.currency,
+          amount: summary.receivable,
+        }));
+
+      const payableByCurrency = summaryByCurrency
+        .filter((summary) => summary.payable > 0)
+        .map((summary) => ({
+          currency: summary.currency,
+          amount: summary.payable,
+        }));
+
+      const { summaryMap, ...partyData } = party;
 
       return {
-        ...party.toJSON(),
-        summaryByCurrency: Object.values(mergedSummary),
+        ...partyData,
+        summaryByCurrency,
+        receivableByCurrency,
+        payableByCurrency,
       };
     });
 
@@ -577,14 +681,43 @@ export const getReceivablePayable = async () => {
       a.currency.localeCompare(b.currency)
     );
 
+    const partiesWithBalance = result.filter((party) =>
+      (party.summaryByCurrency || []).some(
+        (summary) => summary.receivable > 0 || summary.payable > 0
+      )
+    );
+
     return {
       parties: result,
       totals,
+      summary: {
+        partyCount: result.length,
+        partiesWithBalance: partiesWithBalance.length,
+        receivablePartyCount: partiesWithBalance.filter(
+          (party) => (party.receivableByCurrency || []).length > 0
+        ).length,
+        payablePartyCount: partiesWithBalance.filter(
+          (party) => (party.payableByCurrency || []).length > 0
+        ).length,
+        currencies: totals.length,
+        totalReceivableByCurrency: totals
+          .filter((total) => total.receivable > 0)
+          .map((total) => ({
+            currency: total.currency,
+            amount: total.receivable,
+          })),
+        totalPayableByCurrency: totals
+          .filter((total) => total.payable > 0)
+          .map((total) => ({
+            currency: total.currency,
+            amount: total.payable,
+          })),
+      },
       message: "Receivable and Payable summary calculated successfully",
     };
   } catch (err) {
     console.error("Error in getReceivablePayable:", err);
-    return { parties: [], totals: [], message: "Internal Server Error" };
+    return createEmptyReceivablePayableResponse("Internal Server Error");
   }
 };
 

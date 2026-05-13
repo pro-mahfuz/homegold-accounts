@@ -27,7 +27,12 @@ export interface summaryByCurrency {
   paymentCreditSum: number;
   advanceInSum: number;
   advanceOutSum: number;
+  stockNet?: number;
+  paymentNet?: number;
+  advanceNet?: number;
   netBalance: number;
+  receivable?: number;
+  payable?: number;
 }
 
 
@@ -57,25 +62,27 @@ export interface Party {
   summaryByCurrency?: summaryByCurrency[];
 }
 
-// Currency key (example: "USD", "AED")
-export type CurrencyCode = string;
-
 // Receivable/Payable breakdown by currency
 export interface BalanceByCurrency {
   currency: string;
   amount: number;
 }
 
-// Totals grouped by currency
-export interface TotalsByCurrency {
-  [currency: CurrencyCode]: {
-    receivable: number;
-    payable: number;
-  };
+export interface ReceivablePayableTotal extends summaryByCurrency {}
+
+export interface ReceivablePayableSummary {
+  partyCount: number;
+  partiesWithBalance: number;
+  receivablePartyCount: number;
+  payablePartyCount: number;
+  currencies: number;
+  totalReceivableByCurrency: BalanceByCurrency[];
+  totalPayableByCurrency: BalanceByCurrency[];
 }
 
 // Each Party entry
 export interface PartyReport {
+  id?: number;
   name: string;
   receivableByCurrency: BalanceByCurrency[];
   payableByCurrency: BalanceByCurrency[];
@@ -85,7 +92,9 @@ export interface PartyReport {
 // Final API response
 export interface ReceivablePayableReport {
   parties: PartyReport[];
-  totals: TotalsByCurrency[];
+  totals: ReceivablePayableTotal[];
+  summary: ReceivablePayableSummary;
+  message?: string;
 }
 
 export interface Customer extends Party {

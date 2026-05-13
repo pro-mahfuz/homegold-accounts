@@ -14,25 +14,19 @@ const INVOICE_PAYMENT_CONFIG = {
     paymentType: "payment_out",
     prefix: "PMO",
     description: "Paid Payment",
-    debit: true,
+    debit: false,
   },
   wholesale_sale: {
     paymentType: "payment_in",
     prefix: "PMI",
     description: "Received Payment",
-    debit: false,
+    debit: true,
   },
   fix_purchase: {
     paymentType: "payment_out",
     prefix: "PMO",
     description: "Paid Payment",
-    debit: true,
-  },
-  fix_sale: {
-    paymentType: "payment_in",
-    prefix: "PMI",
-    description: "Received Payment",
-    debit: true,
+    debit: false,
   },
 };
 const STOCK_LEDGER_CATEGORY_NAMES = ["currency", "gold"];
@@ -80,6 +74,102 @@ const shouldCreateAutoStockLedger = (invoiceType, categoryName) => {
   }
 
   return !isStockLedgerCategory;
+};
+
+const clearInvoicePaymentsByType = async ({
+  invoiceId,
+  paymentType,
+  transaction,
+}) => {
+  const existingPayments = await Payment.findAll({
+    where: {
+      invoiceId,
+      paymentType,
+    },
+    transaction,
+  });
+
+  if (existingPayments.length === 0) {
+    return;
+  }
+
+  const paymentIds = existingPayments.map((payment) => payment.id);
+
+  await Ledger.destroy({
+    where: { paymentId: { [Op.in]: paymentIds } },
+    transaction,
+  });
+
+  await Payment.destroy({
+    where: { id: { [Op.in]: paymentIds } },
+    transaction,
+  });
+};
+
+const getInvoiceLedgerPosting = ({
+  invoiceType,
+  grandTotal,
+  items,
+  categoryName,
+}) => {
+  let debitAmount = 0;
+  let creditAmount = 0;
+  let debitQuantity = 0;
+  let creditQuantity = 0;
+  let stockCurrency = null;
+
+  const normalizedType = invoiceType?.toLowerCase();
+  const normalizedCategory = categoryName?.toLowerCase();
+  const primaryItem = Array.isArray(items) ? items[0] : null;
+  const primaryQuantity = primaryItem?.quantity ?? 0;
+  const primaryItemName = primaryItem?.name ?? null;
+
+  if (["purchase", "clearance_bill", "wholesale_purchase"].includes(normalizedType)) {
+    creditAmount = grandTotal;
+  }
+
+  if (["sale", "wholesale_sale", "fix_purchase"].includes(normalizedType)) {
+    debitAmount = grandTotal;
+  }
+
+  if (normalizedType === "fix_sale") {
+    creditAmount = grandTotal;
+  }
+
+  if (STOCK_LEDGER_CATEGORY_NAMES.includes(normalizedCategory)) {
+    if (["purchase", "clearance_bill", "wholesale_purchase"].includes(normalizedType)) {
+      creditQuantity = primaryQuantity;
+      stockCurrency = primaryItemName;
+    }
+
+    if (normalizedType === "unfix_purchase") {
+      debitQuantity = primaryQuantity;
+      stockCurrency = primaryItemName;
+    }
+
+    if (normalizedType === "fix_purchase") {
+      creditQuantity = primaryQuantity;
+      stockCurrency = primaryItemName;
+    }
+
+    if (normalizedType === "unfix_sale") {
+      creditQuantity = primaryQuantity;
+      stockCurrency = primaryItemName;
+    }
+
+    if (normalizedType === "fix_sale") {
+      debitQuantity = primaryQuantity;
+      stockCurrency = primaryItemName;
+    }
+  }
+
+  return {
+    debitAmount,
+    creditAmount,
+    debitQuantity,
+    creditQuantity,
+    stockCurrency,
+  };
 };
 
 const getWarehouseAvailableStock = async ({
@@ -265,26 +355,20 @@ const syncInvoiceAutoPayment = async ({
   }
 
   if (!paymentConfig) {
-    if (type === "unfix_sale") {
-      const existingPayments = await Payment.findAll({
-        where: {
-          invoiceId: invoice.id,
-          paymentType: "payment_in",
-        },
+    if (type === "unfix_purchase") {
+      await clearInvoicePaymentsByType({
+        invoiceId: invoice.id,
+        paymentType: "payment_out",
         transaction,
       });
+    }
 
-      if (existingPayments.length > 0) {
-        const paymentIds = existingPayments.map((payment) => payment.id);
-        await Ledger.destroy({
-          where: { paymentId: { [Op.in]: paymentIds } },
-          transaction,
-        });
-        await Payment.destroy({
-          where: { id: { [Op.in]: paymentIds } },
-          transaction,
-        });
-      }
+    if (["unfix_sale", "fix_sale"].includes(type)) {
+      await clearInvoicePaymentsByType({
+        invoiceId: invoice.id,
+        paymentType: "payment_in",
+        transaction,
+      });
     }
 
     return null;
@@ -1397,48 +1481,20 @@ export const createInvoice = async (req) => {
     if (invoiceData.isVat === false) {
       await invoice.update({ vatInvoiceNo: null, vatPercentage: 0 }, { transaction: t });
     }
-
-
-    let debitAmount = 0;
-    let creditAmount = 0;
-    let debitQuantity = 0;
-    let creditQuantity = 0;
-    let stock_Currency = null;
-
-    // Normalize invoiceType
     const type = invoice.invoiceType?.toLowerCase();
     const category = await Category.findByPk(req.body.categoryId);
-
-    if (["purchase", "clearance_bill", "wholesale_purchase"].includes(type)) {
-      creditAmount = invoice.grandTotal;
-    }
-
-    if (["sale", "wholesale_sale", "fix_sale", "fix_purchase"].includes(type)) {
-      debitAmount = invoice.grandTotal;
-    }
-
-    if (category && ["currency", "gold"].includes(category.name.toLowerCase())) {
-      if (["purchase", "clearance_bill", "wholesale_purchase"].includes(type)) {
-        creditQuantity = items[0]?.quantity ?? 0;
-        stock_Currency = items[0]?.name ?? null;
-      }
-      if (type === "unfix_purchase") {
-        debitQuantity = items[0]?.quantity ?? 0;
-        stock_Currency = items[0]?.name ?? null;
-      }
-      if (type === "fix_purchase") {
-        creditQuantity = items[0]?.quantity ?? 0;
-        stock_Currency = items[0]?.name ?? null;
-      }
-      if (type === "unfix_sale") {
-        debitQuantity = items[0]?.quantity ?? 0;
-        stock_Currency = items[0]?.name ?? null;
-      }
-      if (type === "fix_sale") {
-        creditQuantity = items[0]?.quantity ?? 0;
-        stock_Currency = items[0]?.name ?? null;
-      }
-    }
+    const {
+      debitAmount,
+      creditAmount,
+      debitQuantity,
+      creditQuantity,
+      stockCurrency,
+    } = getInvoiceLedgerPosting({
+      invoiceType: invoice.invoiceType,
+      grandTotal: invoice.grandTotal,
+      items,
+      categoryName: category?.name,
+    });
 
     // Step 3: create ledger
     if (invoice.system === 1) {
@@ -1456,7 +1512,7 @@ export const createInvoice = async (req) => {
               .join(', ')}${invoice.note ? `<br />Note: ${invoice.note}` : ''}`
           : '',
           currency: req.body.currency,
-          stockCurrency: stock_Currency,
+          stockCurrency,
           debit: debitAmount,
           credit: creditAmount,
           debitQty: debitQuantity,
@@ -1561,8 +1617,8 @@ export const createInvoice = async (req) => {
             bankId: req.body.bankId,
             description: 'Received Payment',
             currency: invoice.currency,
-            debit: 0,
-            credit: req.body.paidTotal,
+            debit: req.body.paidTotal,
+            credit: 0,
             createdBy: req.body.createdBy
           }, { transaction: t });
 
@@ -1698,48 +1754,20 @@ export const updateInvoice = async (req) => {
             where: { invoiceId: invoice.id },
             transaction: t,
         });
-
-
-        let debitAmount = 0;
-        let creditAmount = 0;
-        let debitQuantity = 0;
-        let creditQuantity = 0;
-        let stock_Currency = null;
-
-        // Normalize invoiceType
         const type = invoice.invoiceType?.toLowerCase();
         const category = await Category.findByPk(req.body.categoryId);
-
-        if (["purchase", "clearance_bill", "wholesale_purchase"].includes(type)) {
-          creditAmount = invoice.grandTotal;
-        }
-
-        if (["sale", "wholesale_sale", "fix_sale", "fix_purchase"].includes(type)) {
-          debitAmount = invoice.grandTotal;
-        }
-
-        if (category && ["currency", "gold"].includes(category.name.toLowerCase())) {
-          if (["purchase", "clearance_bill", "wholesale_purchase"].includes(type)) {
-            creditQuantity = items[0]?.quantity ?? 0;
-            stock_Currency = items[0]?.name ?? null;
-          }
-          if (type === "unfix_purchase") {
-            debitQuantity = items[0]?.quantity ?? 0;
-            stock_Currency = items[0]?.name ?? null;
-          }
-          if (type === "fix_purchase") {
-            creditQuantity = items[0]?.quantity ?? 0;
-            stock_Currency = items[0]?.name ?? null;
-          }
-          if (type === "unfix_sale") {
-            debitQuantity = items[0]?.quantity ?? 0;
-            stock_Currency = items[0]?.name ?? null;
-          }
-          if (type === "fix_sale") {
-            creditQuantity = items[0]?.quantity ?? 0;
-            stock_Currency = items[0]?.name ?? null;
-          }
-        }
+        const {
+          debitAmount,
+          creditAmount,
+          debitQuantity,
+          creditQuantity,
+          stockCurrency,
+        } = getInvoiceLedgerPosting({
+          invoiceType: invoice.invoiceType,
+          grandTotal: invoice.grandTotal,
+          items,
+          categoryName: category?.name,
+        });
 
         // Step 3: create ledger
         await Ledger.create(
@@ -1758,7 +1786,7 @@ export const updateInvoice = async (req) => {
             currency: req.body.currency,
             debit: debitAmount,
             credit: creditAmount,
-            stockCurrency: stock_Currency,
+            stockCurrency,
             debitQty: debitQuantity,
             creditQty: creditQuantity,
             createdBy: invoice.createdBy,
@@ -1876,8 +1904,8 @@ export const updateInvoice = async (req) => {
                   bankId: req.body.bankId,
                   description: 'Received Payment',
                   currency: invoice.currency,
-                  debit: 0,
-                  credit: req.body.paidTotal,
+                  debit: req.body.paidTotal,
+                  credit: 0,
                   createdBy: req.body.createdBy,
                   updatedBy: req.body.updatedBy
                 }, { transaction: t });
@@ -1908,8 +1936,8 @@ export const updateInvoice = async (req) => {
                   bankId: req.body.bankId,
                   description: 'Received Payment',
                   currency: invoice.currency,
-                  debit: 0,
-                  credit: req.body.paidTotal,
+                  debit: req.body.paidTotal,
+                  credit: 0,
                   createdBy: req.body.createdBy
                 }, { transaction: t });
               }
@@ -1970,15 +1998,25 @@ export const deleteInvoice = async (req) => {
       throw new Error("It has already payment references");
     }
 
-    if (invoice.stocks && invoice.stocks.length > 0) {
-      throw new Error("It has already stock references");
-    } 
+    const stockIds = (invoice.stocks || []).map((stock) => stock.id).filter(Boolean);
 
     // Delete Invoice & Ledger
     await Ledger.destroy({
-      where: { invoiceId: invoice.id },
+      where: {
+        [Op.or]: [
+          { invoiceId: invoice.id },
+          stockIds.length > 0 ? { stockId: { [Op.in]: stockIds } } : null,
+        ].filter(Boolean),
+      },
       transaction: t,
     });
+
+    if (stockIds.length > 0) {
+      await Stock.destroy({
+        where: { id: { [Op.in]: stockIds } },
+        transaction: t,
+      });
+    }
 
     await InvoiceItem.destroy({
       where: { invoiceId: invoice.id },

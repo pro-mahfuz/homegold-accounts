@@ -37,7 +37,7 @@ export const getAllPartyPaginated = async (req, res, next) =>{
 
 export const getReceivablePayable = async (req, res, next) =>{
     try {
-        const parties = await PartyService.getReceivablePayable();
+        const parties = await PartyService.getReceivablePayable(req);
         return success(res, parties, "Response successful");
 
     } catch (err) {

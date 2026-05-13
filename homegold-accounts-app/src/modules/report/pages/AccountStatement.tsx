@@ -50,6 +50,22 @@ export default function AccountStatement() {
   const categories = useSelector(selectAllCategory);
   const paymentAccounts = useSelector(selectAllAccount);
 
+  const getLedgerPaymentBalanceDelta = (ledger: {
+    transactionType?: string | null;
+    debit?: number | null;
+    credit?: number | null;
+  }) => {
+    const transactionType = String(ledger.transactionType || "").toLowerCase();
+    const debit = Number(ledger.debit) || 0;
+    const credit = Number(ledger.credit) || 0;
+
+    if (["payment_in", "payment_out"].includes(transactionType)) {
+      return debit - credit;
+    }
+
+    return credit - debit;
+  };
+
 
   // Sort ledgers
   const sortedLedgers = useMemo(() => {
@@ -136,6 +152,7 @@ export default function AccountStatement() {
         current.purchaseCredit += credit;
         current.purchaseStockDebit += debitQty;
         current.purchaseStockCredit += creditQty;
+        current.purchaseBalance += getLedgerPaymentBalanceDelta(ledger);
       }
 
       if (
@@ -145,6 +162,7 @@ export default function AccountStatement() {
         current.saleCredit += credit;
         current.saleStockDebit += debitQty;
         current.saleStockCredit += creditQty;
+        current.saleBalance += getLedgerPaymentBalanceDelta(ledger);
       }
 
       if (
@@ -159,9 +177,7 @@ export default function AccountStatement() {
         current.advanceDebit += debit;
       }
 
-      current.purchaseBalance = current.purchaseCredit - current.purchaseDebit;
       current.purchaseStockBalance = current.purchaseStockDebit - current.purchaseStockCredit;
-      current.saleBalance = current.saleCredit - current.saleDebit;
       current.saleStockBalance = current.saleStockDebit - current.saleStockCredit;
       current.advanceBalance = current.advanceCredit - current.advanceDebit;
       current.closeBalance = current.purchaseBalance + current.saleBalance;
@@ -408,12 +424,12 @@ export default function AccountStatement() {
                               <TableCell className="border border-gray-300 bg-gray-200 text-center px-2 py-2">
                                 { ledger.transactionType === "purchase" || ledger.transactionType === "clearance_bill" || 
                                   ledger.transactionType === "wholesale_purchase" || ledger.transactionType === "fix_purchase" || 
-                                  ledger.transactionType === "unfix_purchase" || ledger.transactionType === "payment_out" || 
+                                  ledger.transactionType === "unfix_purchase" || 
                                   ledger.transactionType === "clearance_bill" || ledger.transactionType === "discount_purchase" 
                                   ? ledger.debit > 0 ? ledger.debit : "-" : "-"
                                 }
                               </TableCell>
-                              <TableCell className="border border-gray-300 bg-gray-200 text-center px-2 py-2">{ ledger.transactionType === "purchase" || ledger.transactionType === "clearance_bill" || ledger.transactionType === "wholesale_purchase" || ledger.transactionType === "fix_purchase" || ledger.transactionType === "unfix_purchase" || ledger.transactionType === "clearance_bill" || ledger.transactionType === "discount_purchase" ? ledger.credit > 0 ? ledger.credit : "-" : "-" }</TableCell>
+                              <TableCell className="border border-gray-300 bg-gray-200 text-center px-2 py-2">{ ledger.transactionType === "purchase" || ledger.transactionType === "clearance_bill" || ledger.transactionType === "wholesale_purchase" || ledger.transactionType === "fix_purchase" || ledger.transactionType === "unfix_purchase" || ledger.transactionType === "payment_out" || ledger.transactionType === "clearance_bill" || ledger.transactionType === "discount_purchase" ? ledger.credit > 0 ? ledger.credit : "-" : "-" }</TableCell>
                               
                               {categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase())) && (
                                 <>
@@ -437,14 +453,14 @@ export default function AccountStatement() {
                               <TableCell className="border border-gray-300 bg-gray-200 text-center px-2 py-2">
                                 { ledger.transactionType === "sale" || ledger.transactionType === "wholesale_sale" || 
                                 ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || 
-                                ledger.transactionType === "discount_sale" 
+                                ledger.transactionType === "payment_in" || ledger.transactionType === "discount_sale" 
                                 ? ledger.debit > 0 ? ledger.debit : "-" : "-" 
                                 }
                               </TableCell>
                               <TableCell className="border border-gray-300 bg-gray-200 text-center px-2 py-2">
                                 { ledger.transactionType === "sale" || ledger.transactionType === "wholesale_sale" || 
                                 ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || 
-                                ledger.transactionType === "payment_in" || ledger.transactionType === "discount_sale" 
+                                ledger.transactionType === "discount_sale" 
                                 ? ledger.credit > 0 ? ledger.credit : "-" : "-" 
                                 }
                               </TableCell>

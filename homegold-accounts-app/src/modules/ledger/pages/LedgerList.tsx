@@ -132,6 +132,22 @@ export default function LedgerList() {
     return `${itemName}${unitLabel}`;
   };
 
+  const getLedgerPaymentBalanceDelta = (ledger: {
+    transactionType?: string | null;
+    debit?: number | null;
+    credit?: number | null;
+  }) => {
+    const transactionType = String(ledger.transactionType || "").toLowerCase();
+    const debit = Number(ledger.debit) || 0;
+    const credit = Number(ledger.credit) || 0;
+
+    if (["payment_in", "payment_out", "payable", "receivable"].includes(transactionType)) {
+      return debit - credit;
+    }
+
+    return credit - debit;
+  };
+
   const getItemOrCurrencyLabel = (ledger: {
     debit?: number | null;
     credit?: number | null;
@@ -174,11 +190,11 @@ export default function LedgerList() {
     }
 
     if (transactionType === "unfix_sale") {
-      return 0 - debitQty;
+      return 0 - creditQty;
     }
 
     if (transactionType === "fix_sale") {
-      return creditQty;
+      return debitQty;
     }
 
     return debitQty - creditQty;
@@ -221,7 +237,8 @@ export default function LedgerList() {
 
       if (hasPaymentEntry) {
         const paymentKey = getPaymentBalanceKey(ledger);
-        paymentBalancesByCurrency[paymentKey] = (paymentBalancesByCurrency[paymentKey] || 0) + (credit - debit);
+        paymentBalancesByCurrency[paymentKey] =
+          (paymentBalancesByCurrency[paymentKey] || 0) + getLedgerPaymentBalanceDelta(ledger);
         cumulativePaymentBalance = paymentBalancesByCurrency[paymentKey];
       }
 
@@ -328,6 +345,7 @@ export default function LedgerList() {
         current.purchaseCredit += credit;
         current.purchaseStockDebit += debitQty;
         current.purchaseStockCredit += creditQty;
+        current.purchaseBalance += getLedgerPaymentBalanceDelta(ledger);
       }
 
       if (
@@ -337,6 +355,7 @@ export default function LedgerList() {
         current.saleCredit += credit;
         current.saleStockDebit += debitQty;
         current.saleStockCredit += creditQty;
+        current.saleBalance += getLedgerPaymentBalanceDelta(ledger);
       }
 
       if (
@@ -351,9 +370,7 @@ export default function LedgerList() {
         current.advanceDebit += debit;
       }
 
-      current.purchaseBalance = current.purchaseCredit - current.purchaseDebit;
       current.purchaseStockBalance = current.purchaseStockDebit - current.purchaseStockCredit;
-      current.saleBalance = current.saleCredit - current.saleDebit;
       current.saleStockBalance = current.saleStockDebit - current.saleStockCredit;
       current.advanceBalance = current.advanceCredit - current.advanceDebit;
       current.closeBalance = current.purchaseBalance + current.saleBalance;
@@ -378,7 +395,7 @@ export default function LedgerList() {
 
       acc[currency].debit += debit;
       acc[currency].credit += credit;
-      acc[currency].balance = acc[currency].credit - acc[currency].debit;
+      acc[currency].balance += getLedgerPaymentBalanceDelta(ledger);
 
       return acc;
     }, {});
@@ -618,7 +635,6 @@ export default function LedgerList() {
                 ledger.transactionType === "wholesale_purchase" ||
                 ledger.transactionType === "fix_purchase" ||
                 ledger.transactionType === "unfix_purchase" ||
-                ledger.transactionType === "payment_out" ||
                 ledger.transactionType === "discount_purchase"
                   ? ledger.debit > 0 ? ledger.debit : "-"
                   : "-"
@@ -631,6 +647,7 @@ export default function LedgerList() {
                 ledger.transactionType === "wholesale_purchase" ||
                 ledger.transactionType === "fix_purchase" ||
                 ledger.transactionType === "unfix_purchase" ||
+                ledger.transactionType === "payment_out" ||
                 ledger.transactionType === "discount_purchase"
                   ? ledger.credit > 0 ? ledger.credit : "-"
                   : "-"
@@ -676,6 +693,7 @@ export default function LedgerList() {
                 ledger.transactionType === "wholesale_sale" ||
                 ledger.transactionType === "fix_sale" ||
                 ledger.transactionType === "unfix_sale" ||
+                ledger.transactionType === "payment_in" ||
                 ledger.transactionType === "discount_sale"
                   ? ledger.debit > 0 ? ledger.debit : "-"
                   : "-"
@@ -687,7 +705,6 @@ export default function LedgerList() {
                 ledger.transactionType === "wholesale_sale" ||
                 ledger.transactionType === "fix_sale" ||
                 ledger.transactionType === "unfix_sale" ||
-                ledger.transactionType === "payment_in" ||
                 ledger.transactionType === "discount_sale"
                   ? ledger.credit > 0 ? ledger.credit : "-"
                   : "-"
