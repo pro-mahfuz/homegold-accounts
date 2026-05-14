@@ -2,7 +2,13 @@ deployment:
   tasks:
     - export API_DEPLOYPATH=/home/discdlfx/testapi.discovery-inventory.com/
     - /bin/mkdir -p $API_DEPLOYPATH
+    - /bin/date > ${API_DEPLOYPATH}.deploy-started.txt
+    - /bin/pwd >> ${API_DEPLOYPATH}.deploy-started.txt
     - /bin/cp -R ./homegold-accounts-api/. $API_DEPLOYPATH
+    - /bin/date > ${API_DEPLOYPATH}.deploy-finished.txt
     - export APP_DEPLOYPATH=/home/discdlfx/test.discovery-inventory.com/
     - /bin/mkdir -p $APP_DEPLOYPATH
+    - /bin/date > ${APP_DEPLOYPATH}.deploy-started.txt
+    - /bin/pwd >> ${APP_DEPLOYPATH}.deploy-started.txt
     - /bin/cp -R ./homegold-accounts-app/dist/. $APP_DEPLOYPATH
+    - /bin/date > ${APP_DEPLOYPATH}.deploy-finished.txt
