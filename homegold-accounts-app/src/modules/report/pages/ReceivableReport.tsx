@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -20,6 +20,7 @@ import { BalanceByCurrency } from "../../party/features/partyTypes.ts";
 export default function ReceivableReport() {
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
+  const [convertDhValues, setConvertDhValues] = useState<Record<string, string>>({});
   
   useEffect(() => {
     dispatch(fetchReceivablePayable());
@@ -66,6 +67,59 @@ export default function ReceivableReport() {
         .map((total) => ({ currency: total.currency, amount: Number(total.payable) || 0 })),
     };
   }, [data, partiesWithBalance]);
+
+  const currencySummaryRows = useMemo(() => {
+    if ((data?.totals || []).length > 0) {
+      return (data?.totals || [])
+        .map((total) => ({
+          currency: total.currency,
+          receivable: Number(total.receivable || 0),
+          payable: Number(total.payable || 0),
+          balance: Number(total.netBalance || 0),
+        }))
+        .filter(
+          (row) =>
+            Math.abs(row.receivable) >= 0.005 ||
+            Math.abs(row.payable) >= 0.005 ||
+            Math.abs(row.balance) >= 0.005
+        )
+        .sort((a, b) => String(a.currency).localeCompare(String(b.currency)));
+    }
+
+    const summaryMap = new Map<
+      string,
+      { currency: string; receivable: number; payable: number; balance: number }
+    >();
+
+    (reportSummary.totalReceivableByCurrency || []).forEach((entry) => {
+      const existing = summaryMap.get(entry.currency) || {
+        currency: entry.currency,
+        receivable: 0,
+        payable: 0,
+        balance: 0,
+      };
+      existing.receivable = Number(entry.amount || 0);
+      summaryMap.set(entry.currency, existing);
+    });
+
+    (reportSummary.totalPayableByCurrency || []).forEach((entry) => {
+      const existing = summaryMap.get(entry.currency) || {
+        currency: entry.currency,
+        receivable: 0,
+        payable: 0,
+        balance: 0,
+      };
+      existing.payable = Number(entry.amount || 0);
+      summaryMap.set(entry.currency, existing);
+    });
+
+    return Array.from(summaryMap.values())
+      .map((row) => ({
+        ...row,
+        balance: Number((row.payable - row.receivable).toFixed(2)),
+      }))
+      .sort((a, b) => String(a.currency).localeCompare(String(b.currency)));
+  }, [data, reportSummary]);
 
   const renderBalanceEntries = (
     entries: BalanceByCurrency[],
@@ -141,6 +195,36 @@ export default function ReceivableReport() {
   };
 
   const totalColumnCount = 2 + receivableColumnLabels.length + payableColumnLabels.length;
+
+  const getConvertedDhTotal = (currency: string, balance: number) => {
+    const rawValue = convertDhValues[currency];
+    const convertValue = Number(rawValue);
+
+    if (!rawValue || !Number.isFinite(convertValue) || convertValue === 0) {
+      return "--";
+    }
+
+    return (balance / convertValue).toFixed(2);
+  };
+
+  const totalClosingBalanceDh = useMemo(() => {
+    let total = 0;
+    let hasAtLeastOneValue = false;
+
+    currencySummaryRows.forEach((row) => {
+      const rawValue = convertDhValues[row.currency];
+      const convertValue = Number(rawValue);
+
+      if (!rawValue || !Number.isFinite(convertValue) || convertValue === 0) {
+        return;
+      }
+
+      total += row.balance / convertValue;
+      hasAtLeastOneValue = true;
+    });
+
+    return hasAtLeastOneValue ? total.toFixed(2) : "--";
+  }, [convertDhValues, currencySummaryRows]);
 
   return (
     <>
@@ -333,6 +417,98 @@ export default function ReceivableReport() {
                     )}
                 </TableBody>
               </Table>
+              </div>
+
+              <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4">
+                <div className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
+                  Currency Summary
+                </div>
+
+                <div className="max-w-full overflow-x-auto">
+                  <Table>
+                    <TableHeader className="border border-gray-500 bg-slate-100 text-black text-sm dark:bg-gray-800 dark:text-gray-400">
+                      <TableRow>
+                        <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">CURRENCY</TableCell>
+                        <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">RECEIVABLE</TableCell>
+                        <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">PAYABLE</TableCell>
+                        <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">BALANCE</TableCell>
+                        <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">CONVERT (DH)</TableCell>
+                        <TableCell isHeader className="border border-gray-500 text-center px-2 py-1">TOTAL (DH)</TableCell>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {status === "loading" ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="border border-gray-500 text-center py-4 text-gray-500 dark:text-gray-300">
+                            Loading data...
+                          </TableCell>
+                        </TableRow>
+                      ) : currencySummaryRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="border border-gray-500 text-center py-4 text-gray-500 dark:text-gray-300">
+                            No summary data found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <>
+                          {currencySummaryRows.map((row) => (
+                            <TableRow key={`currency-summary-${row.currency}`}>
+                              <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {row.currency}
+                              </TableCell>
+                              <TableCell className="border border-gray-500 px-2 py-1 text-sm text-right text-red-500">
+                                {row.receivable === 0 ? "--" : row.receivable.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="border border-gray-500 px-2 py-1 text-sm text-right text-green-700">
+                                {row.payable === 0 ? "--" : row.payable.toFixed(2)}
+                              </TableCell>
+                              <TableCell
+                                className={`border border-gray-500 px-2 py-1 text-sm text-right ${
+                                  row.balance < 0
+                                    ? "text-red-500"
+                                    : row.balance > 0
+                                    ? "text-green-700"
+                                    : "text-gray-500 dark:text-gray-300"
+                                }`}
+                              >
+                                {row.balance === 0 ? "--" : row.balance.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="border border-gray-500 px-2 py-1 text-sm text-center">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={convertDhValues[row.currency] ?? ""}
+                                  onChange={(event) =>
+                                    setConvertDhValues((prev) => ({
+                                      ...prev,
+                                      [row.currency]: event.target.value,
+                                    }))
+                                  }
+                                  className="w-24 rounded border border-gray-300 px-2 py-1 text-right text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                />
+                              </TableCell>
+                              <TableCell className="border border-gray-500 px-2 py-1 text-sm text-right font-medium text-sky-700 dark:text-sky-300">
+                                {getConvertedDhTotal(row.currency, row.balance)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow>
+                            <TableCell
+                              colSpan={5}
+                              className="border border-gray-500 px-2 py-2 text-right text-sm font-bold text-gray-700 dark:text-gray-300"
+                            >
+                              TOTAL CLOSING BALANCE (DH)
+                            </TableCell>
+                            <TableCell className="border border-gray-500 px-2 py-2 text-right text-sm font-bold text-sky-700 dark:text-sky-300">
+                              {totalClosingBalanceDh}
+                            </TableCell>
+                          </TableRow>
+                        </>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </div>
           </div>
