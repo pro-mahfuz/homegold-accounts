@@ -1,7 +1,7 @@
 deployment:
   tasks:
     - export API_DEPLOYPATH=/home/discdlfx/testapi.discovery-inventory.com/
-    - cp -a ./homegold-accounts-api/. $API_DEPLOYPATH
+    - cp -a ./homegold-accounts-api/. "$API_DEPLOYPATH"
 
     - export APP_DEPLOYPATH=/home/discdlfx/test.discovery-inventory.com/
-    - cp -a ./homegold-accounts-app/dist/. $APP_DEPLOYPATH
+    - cp -a ./homegold-accounts-app/dist/. "$APP_DEPLOYPATH"
