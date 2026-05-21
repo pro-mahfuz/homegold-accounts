@@ -12,6 +12,14 @@ const STOCK_LEDGER_CATEGORY_NAMES = ["currency", "gold"];
 const STOCK_IN_MOVEMENT_TYPES = ["stock_in", "stock_transfer_return"];
 const STOCK_OUT_MOVEMENT_TYPES = ["stock_out", "stock_transfer"];
 const STOCK_TRANSFER_MOVEMENT_TYPES = ["stock_transfer", "stock_transfer_return"];
+const STOCK_REPORT_TRANSFER_TRANSACTION_TYPES = ["unfix_sale_transter", "unfix_transter"];
+const STOCK_REPORT_LEDGER_TYPES = [
+  "unfix_purchase",
+  "fix_purchase",
+  "unfix_sale",
+  "fix_sale",
+  ...STOCK_REPORT_TRANSFER_TRANSACTION_TYPES,
+];
 
 const getWarehouseAvailableStock = async ({
   businessId,
@@ -150,7 +158,7 @@ export const getStockReport = async () => {
       isDeleted: false,
       invoiceId: { [Op.ne]: null },
       transactionType: {
-        [Op.in]: ["unfix_purchase", "fix_purchase", "unfix_sale", "fix_sale"],
+        [Op.in]: STOCK_REPORT_LEDGER_TYPES,
       },
     },
     include: [
@@ -158,6 +166,15 @@ export const getStockReport = async () => {
         model: Party,
         as: "party",
         required: false,
+      },
+      {
+        model: Stock,
+        as: "stock",
+        required: false,
+        include: [
+          { model: Item, as: "item", required: false },
+          { model: Warehouse, as: "warehouse", required: false },
+        ],
       },
       {
         model: Invoice,
@@ -190,6 +207,58 @@ export const getStockReport = async () => {
 
   ledgerRows.forEach((ledger) => {
     const transactionType = ledger.transactionType?.toLowerCase();
+    const isTransferTransaction = STOCK_REPORT_TRANSFER_TRANSACTION_TYPES.includes(transactionType);
+
+    if (isTransferTransaction && ledger.stock) {
+      const partyId = Number(ledger.partyId) || 0;
+      const warehouseId = Number(ledger.stock.warehouseId) || 0;
+      const itemId = Number(ledger.stock.itemId) || 0;
+      const unit = ledger.stock.unit ?? "";
+
+      if (!itemId || !unit) {
+        return;
+      }
+
+      const key = [partyId, warehouseId, itemId, unit].join("|");
+      const existing = grouped.get(key) ?? {
+        partyId: partyId || null,
+        party: ledger.party ?? null,
+        warehouseId: warehouseId || null,
+        itemId: itemId || null,
+        unit,
+        warehouse: ledger.stock.warehouse ?? null,
+        item: ledger.stock.item ?? null,
+        totalUnfixPurchase: 0,
+        totalFixPurchase: 0,
+        totalUnfixSale: 0,
+        totalFixSale: 0,
+        totalStockIn: 0,
+        totalStockOut: 0,
+        totalTransferOut: 0,
+        totalTransferReturn: 0,
+        totalIn: 0,
+        totalOut: 0,
+        totalDamaged: 0,
+      };
+
+      const quantity =
+        Number(ledger.stock.quantity) ||
+        Number(ledger.creditQty) ||
+        Number(ledger.debitQty) ||
+        0;
+
+      if (Number(ledger.creditQty) > 0 || ledger.stock.movementType === "stock_transfer") {
+        existing.totalTransferOut += quantity;
+      }
+
+      if (Number(ledger.debitQty) > 0 || ledger.stock.movementType === "stock_transfer_return") {
+        existing.totalTransferReturn += quantity;
+      }
+
+      grouped.set(key, existing);
+      return;
+    }
+
     const invoiceItems = ledger.invoice?.items ?? [];
 
     invoiceItems.forEach((invoiceItem) => {
@@ -249,8 +318,8 @@ export const getStockReport = async () => {
     const totalTransferOut = Number(entry.totalTransferOut) || 0;
     const totalTransferReturn = Number(entry.totalTransferReturn) || 0;
     const totalDamaged = Number(entry.totalDamaged) || 0;
-    const totalIn = Number(entry.totalIn) || 0;
-    const totalOut = Number(entry.totalOut) || 0;
+    const totalIn = totalUnfixPurchase + totalTransferReturn + (Number(entry.totalIn) || 0);
+    const totalOut = totalFixSale + totalTransferOut + (Number(entry.totalOut) || 0);
     const currentStock = totalUnfixPurchase - totalFixSale;
     const transferStock = totalTransferOut - totalTransferReturn;
     const totalStock = currentStock + transferStock;

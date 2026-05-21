@@ -99,7 +99,7 @@ export const selectAccountLedgers = (
 
 
 const SALE_TYPES = [
-  "sale", "wholesale_sale", "fix_sale", "unfix_sale", "stock_out", "payment_in", 
+  "sale", "wholesale_sale", "fix_sale", "unfix_sale", "unfix_sale_transter", "unfix_transter", "stock_out", "payment_in", 
   "capital_in", "capital_out", "advance_received", "advance_payment_deduct", "advance_payment", 
   "advance_received_deduct", "discount_sale"
 ];
@@ -110,7 +110,7 @@ const PURCHASE_TYPES = [
 ];
 const All_TYPES = [
   "purchase", "clearance_bill", "wholesale_purchase", "fix_purchase", "unfix_purchase", "stock_in", "payment_out", 
-  "sale", "wholesale_sale", "fix_sale", "unfix_sale", "stock_out", "payment_in", "capital_in", "capital_out", 
+  "sale", "wholesale_sale", "fix_sale", "unfix_sale", "unfix_sale_transter", "unfix_transter", "stock_out", "payment_in", "capital_in", "capital_out", 
   "stock_transfer", "stock_transfer_return",
   "advance_received", "advance_payment_deduct", "advance_payment", "advance_received_deduct", "discount_sale", 
   "discount_purchase", "premium_received", "premium_paid", "deposit", "withdraw", "payable", "receivable", "bill_out"

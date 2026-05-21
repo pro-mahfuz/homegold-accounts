@@ -13,6 +13,8 @@ type AdvanceSummary = {
 export interface Invoice {
   id?: number; 
   invoiceRefId?: number;
+  referenceInvoiceNo?: string | null;
+  referencePartyName?: string | null;
   vatInvoiceRefNo?: number;
   businessId?: number;   
   business?: Business;              

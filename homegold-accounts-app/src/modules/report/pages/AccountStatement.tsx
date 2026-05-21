@@ -452,14 +452,14 @@ export default function AccountStatement() {
 
                               <TableCell className="border border-gray-300 bg-gray-200 text-center px-2 py-2">
                                 { ledger.transactionType === "sale" || ledger.transactionType === "wholesale_sale" || 
-                                ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || 
+                                ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || ledger.transactionType === "unfix_sale_transter" || ledger.transactionType === "unfix_transter" || 
                                 ledger.transactionType === "payment_in" || ledger.transactionType === "discount_sale" 
                                 ? ledger.debit > 0 ? ledger.debit : "-" : "-" 
                                 }
                               </TableCell>
                               <TableCell className="border border-gray-300 bg-gray-200 text-center px-2 py-2">
                                 { ledger.transactionType === "sale" || ledger.transactionType === "wholesale_sale" || 
-                                ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || 
+                                ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || ledger.transactionType === "unfix_sale_transter" || ledger.transactionType === "unfix_transter" || 
                                 ledger.transactionType === "discount_sale" 
                                 ? ledger.credit > 0 ? ledger.credit : "-" : "-" 
                                 }
@@ -469,14 +469,14 @@ export default function AccountStatement() {
                                 <>
                                 <TableCell className="border border-gray-300 bg-gray-50 text-center px-2 py-2">
                                   { ledger.transactionType === "sale" || ledger.transactionType === "wholesale_sale" || 
-                                  ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || 
+                                  ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || ledger.transactionType === "unfix_sale_transter" || ledger.transactionType === "unfix_transter" || 
                                   ledger.transactionType === "stock_out" 
                                   ? ledger.debitQty > 0 ? ledger.debitQty : "-" : "-" 
                                   }
                                 </TableCell>
                                 <TableCell className="border border-gray-300 bg-gray-50 text-center px-2 py-2">
                                   { ledger.transactionType === "sale" || ledger.transactionType === "wholesale_sale" || 
-                                  ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || 
+                                  ledger.transactionType === "fix_sale" || ledger.transactionType === "unfix_sale" || ledger.transactionType === "unfix_sale_transter" || ledger.transactionType === "unfix_transter" || 
                                   ledger.transactionType === "stock_out" 
                                   ? ledger.creditQty > 0 ? ledger.creditQty : "-" : "-" 
                                   }

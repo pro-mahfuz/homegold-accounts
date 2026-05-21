@@ -35,7 +35,7 @@ import {
 import { selectAllCategory } from "../../category/features/categorySelectors";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
 import { fetchAllStock, destroy } from "../features/stockThunks.ts";
-import { getMovementTypeLabel } from "../../types.ts";
+import { formatInvoiceTypeLabel, getMovementTypeLabel, isUnfixSaleTransterType } from "../../types.ts";
 
 export default function StockList() {
   const navigate = useNavigate();
@@ -112,6 +112,14 @@ export default function StockList() {
   const closeAndResetModal = () => {
     setSelectedStock(null);
     closeModal();
+  };
+
+  const getStockTypeLabel = (stock: Stock) => {
+    if (isUnfixSaleTransterType(stock.invoiceType)) {
+      return formatInvoiceTypeLabel(stock.invoiceType);
+    }
+
+    return getMovementTypeLabel(stock.movementType);
   };
 
   useEffect(() => {
@@ -223,7 +231,7 @@ export default function StockList() {
                         {stock.stockRefNo}
                       </TableCell>
                       <TableCell className="border border-gray-500 text-center px-4 py-1 text-sm text-gray-500 dark:text-gray-400">
-                        {getMovementTypeLabel(stock.movementType)}
+                        {getStockTypeLabel(stock)}
                       </TableCell>
                       <TableCell className="border border-gray-500 text-center px-4 py-1 text-sm text-gray-500 dark:text-gray-400">
                         {stock.invoiceRefNo ? stock.invoiceRefNo : "-"}

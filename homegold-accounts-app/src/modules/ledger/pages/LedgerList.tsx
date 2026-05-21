@@ -349,7 +349,7 @@ export default function LedgerList() {
       }
 
       if (
-        ["sale", "fix_sale", "unfix_sale", "wholesale_sale","payment_in", "stock_out", "discount_sale"].includes(ledger.transactionType)
+        ["sale", "fix_sale", "unfix_sale", "unfix_sale_transter", "unfix_transter", "wholesale_sale","payment_in", "stock_out", "discount_sale"].includes(ledger.transactionType)
       ) {
         current.saleDebit += debit;
         current.saleCredit += credit;
@@ -693,6 +693,8 @@ export default function LedgerList() {
                 ledger.transactionType === "wholesale_sale" ||
                 ledger.transactionType === "fix_sale" ||
                 ledger.transactionType === "unfix_sale" ||
+                ledger.transactionType === "unfix_sale_transter" ||
+                ledger.transactionType === "unfix_transter" ||
                 ledger.transactionType === "payment_in" ||
                 ledger.transactionType === "discount_sale"
                   ? ledger.debit > 0 ? ledger.debit : "-"
@@ -705,6 +707,8 @@ export default function LedgerList() {
                 ledger.transactionType === "wholesale_sale" ||
                 ledger.transactionType === "fix_sale" ||
                 ledger.transactionType === "unfix_sale" ||
+                ledger.transactionType === "unfix_sale_transter" ||
+                ledger.transactionType === "unfix_transter" ||
                 ledger.transactionType === "discount_sale"
                   ? ledger.credit > 0 ? ledger.credit : "-"
                   : "-"
@@ -719,6 +723,8 @@ export default function LedgerList() {
                     ledger.transactionType === "wholesale_sale" ||
                     ledger.transactionType === "fix_sale" ||
                     ledger.transactionType === "unfix_sale" ||
+                    ledger.transactionType === "unfix_sale_transter" ||
+                    ledger.transactionType === "unfix_transter" ||
                     ledger.transactionType === "stock_out"
                       ? ledger.debitQty > 0 ? ledger.debitQty : "-"
                       : "-"
@@ -730,6 +736,8 @@ export default function LedgerList() {
                     ledger.transactionType === "wholesale_sale" ||
                     ledger.transactionType === "fix_sale" ||
                     ledger.transactionType === "unfix_sale" ||
+                    ledger.transactionType === "unfix_sale_transter" ||
+                    ledger.transactionType === "unfix_transter" ||
                     ledger.transactionType === "stock_out"
                       ? ledger.creditQty > 0 ? ledger.creditQty : "-"
                       : "-"

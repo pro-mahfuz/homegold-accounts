@@ -154,6 +154,8 @@ export default function StockReport() {
         unit: string;
         totalUnfixSale: number;
         totalFixSale: number;
+        totalTransferOut: number;
+        totalTransferReturn: number;
         currentSaleStock: number;
       }
     >();
@@ -171,20 +173,33 @@ export default function StockReport() {
           unit,
           totalUnfixSale: 0,
           totalFixSale: 0,
+          totalTransferOut: 0,
+          totalTransferReturn: 0,
           currentSaleStock: 0,
         };
 
         existing.totalUnfixSale += Number(stock.totalUnfixSale) || 0;
         existing.totalFixSale += Number(stock.totalFixSale) || 0;
+        existing.totalTransferOut += Number(stock.totalTransferOut) || 0;
+        existing.totalTransferReturn += Number(stock.totalTransferReturn) || 0;
 
         existing.currentSaleStock =
-          existing.totalUnfixSale - existing.totalFixSale;
+          existing.totalUnfixSale +
+          existing.totalTransferOut -
+          existing.totalFixSale -
+          existing.totalTransferReturn;
 
         grouped.set(key, existing);
       });
 
     return Array.from(grouped.values())
-      .filter((row) => row.totalUnfixSale > 0 || row.totalFixSale > 0)
+      .filter(
+        (row) =>
+          row.totalUnfixSale > 0 ||
+          row.totalFixSale > 0 ||
+          row.totalTransferOut > 0 ||
+          row.totalTransferReturn > 0
+      )
       .sort((a, b) => {
         const partyCompare = a.partyName.localeCompare(b.partyName);
         if (partyCompare !== 0) return partyCompare;
@@ -223,6 +238,8 @@ export default function StockReport() {
         totalFixPurchase: number;
         totalUnfixSale: number;
         totalFixSale: number;
+        totalTransferOut: number;
+        totalTransferReturn: number;
         currentStock: number;
       }
     >();
@@ -239,6 +256,8 @@ export default function StockReport() {
         totalFixPurchase: 0,
         totalUnfixSale: 0,
         totalFixSale: 0,
+        totalTransferOut: 0,
+        totalTransferReturn: 0,
         currentStock: 0,
       };
 
@@ -246,6 +265,8 @@ export default function StockReport() {
       existing.totalFixPurchase += Number(stock.totalFixPurchase) || 0;
       existing.totalUnfixSale += Number(stock.totalUnfixSale) || 0;
       existing.totalFixSale += Number(stock.totalFixSale) || 0;
+      existing.totalTransferOut += Number(stock.totalTransferOut) || 0;
+      existing.totalTransferReturn += Number(stock.totalTransferReturn) || 0;
       existing.currentStock += Number(stock.currentStock) || 0;
 
       grouped.set(key, existing);
@@ -257,7 +278,9 @@ export default function StockReport() {
           row.totalUnfixPurchase > 0 ||
           row.totalFixPurchase > 0 ||
           row.totalUnfixSale > 0 ||
-          row.totalFixSale > 0
+          row.totalFixSale > 0 ||
+          row.totalTransferOut > 0 ||
+          row.totalTransferReturn > 0
       )
       .sort((a, b) => {
         const itemCompare = a.itemName.localeCompare(b.itemName);
@@ -269,7 +292,11 @@ export default function StockReport() {
   const sellingStockItemWise = useMemo(() => {
     return itemWiseSummary
       .map((item) => {
-        const totalSaleStock = item.totalUnfixSale - item.totalFixSale;
+        const totalSaleStock =
+          item.totalUnfixSale +
+          item.totalTransferOut -
+          item.totalFixSale -
+          item.totalTransferReturn;
         return {
           itemId: item.itemId,
           itemName: item.itemName,
@@ -605,7 +632,7 @@ export default function StockReport() {
                               {party.totalFixSale.toFixed(2)}
                             </TableCell>
                             <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
-                              {(party.totalUnfixSale - party.totalFixSale).toFixed(2)}
+                              {party.currentSaleStock.toFixed(2)}
                             </TableCell>
                           </TableRow>
                         ))
@@ -682,7 +709,7 @@ export default function StockReport() {
                               {item.unit?.toUpperCase() || "-"}
                             </TableCell>
                             <TableCell className="border border-gray-500 text-center px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
-                              {item.currentStock.toFixed(2)}
+                              {item.sellingStock.toFixed(2)}
                             </TableCell>
                           </TableRow>
                         ))

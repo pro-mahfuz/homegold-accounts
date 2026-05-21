@@ -93,7 +93,7 @@ export const getAllPartyWithPagination = async (
         if (!acc[currency]) acc[currency] = { currency, stockInSum: 0, stockOutSum: 0 };
 
         if (
-          ["purchase", "stock_in", "sale", "stock_out", "fix_purchase", "unfix_purchase", "wholesale_purchase", "fix_sale", "unfix_sale", "wholesale_sale"]
+          ["purchase", "stock_in", "sale", "stock_out", "fix_purchase", "unfix_purchase", "wholesale_purchase", "fix_sale", "unfix_sale", "unfix_sale_transter", "unfix_transter", "wholesale_sale"]
             .includes(s.transactionType)
         ) {
           acc[currency].stockInSum += Number(s.debitQty) || 0;
@@ -110,7 +110,7 @@ export const getAllPartyWithPagination = async (
         if (!acc[currency]) acc[currency] = { currency, paymentInSum: 0, paymentOutSum: 0 };
 
         if (
-          ["purchase", "payment_in", "sale", "payment_out", "fix_purchase", "unfix_purchase", "wholesale_purchase", "fix_sale", "unfix_sale", "wholesale_sale"]
+          ["purchase", "payment_in", "sale", "payment_out", "fix_purchase", "unfix_purchase", "wholesale_purchase", "fix_sale", "unfix_sale", "unfix_sale_transter", "unfix_transter", "wholesale_sale"]
             .includes(p.transactionType)
         ) {
           acc[currency].paymentInSum += getLedgerIncomingPaymentAmount(p);

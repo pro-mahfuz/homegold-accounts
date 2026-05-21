@@ -94,6 +94,7 @@ const AppSidebar: React.FC<any> = () => {
       subItems: [
         { name: "Sale List", path: "/invoice/sale/0/list", pro: false, permission:"manage_sale" },
         { name: "Unfix Sale Add", path: "/invoice/unfix_sale/create", pro: false, permission:"create_sale" },
+        { name: "Unfix Sale Transter Add", path: "/invoice/unfix_sale_transter/create", pro: false, permission:"create_sale" },
         { name: "Fix Sale Add", path: "/invoice/fix_sale/create", pro: false, permission:"create_sale" }
       ],
     },
@@ -227,8 +228,14 @@ const AppSidebar: React.FC<any> = () => {
 
   // const isActive = (path: string) => location.pathname === path;
   const isActive = useCallback(
-    (path: string) => location.pathname === path,
-    [location.pathname]
+    (path: string) => {
+      if (path.includes("?")) {
+        return `${location.pathname}${location.search}` === path;
+      }
+
+      return location.pathname === path;
+    },
+    [location.pathname, location.search]
   );
 
   useEffect(() => {

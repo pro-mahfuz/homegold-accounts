@@ -1,4 +1,4 @@
-import { FormEvent, ChangeEvent, useState, useEffect } from "react";
+import { FormEvent, ChangeEvent, useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -25,7 +25,7 @@ import { OptionStringType } from "../../types.ts";
 import { Invoice } from "../features/invoiceTypes";
 import { Item } from "../../item/features/itemTypes.ts";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
-import { update, fetchById, fetchAllInvoicePagination } from "../features/invoiceThunks";
+import { update, fetchById, fetchAllInvoicePagination, fetchAllInvoice } from "../features/invoiceThunks";
 
 import { AppDispatch } from "../../../store/store";
 import { selectAllParties } from "../../party/features/partySelectors";
@@ -36,9 +36,9 @@ import {
 import { selectUserById } from "../../user/features/userSelectors";
 import { selectAuth } from "../../auth/features/authSelectors";
 import { selectInvoiceById } from "../features/invoiceSelectors";
-import { selectInvoiceStatus } from "../../invoice/features/invoiceSelectors.ts";
+import { selectAllInvoice, selectInvoiceStatus } from "../../invoice/features/invoiceSelectors.ts";
 
-import { selectStyles, CurrencyOptions } from "../../types.ts";
+import { selectStyles, CurrencyOptions, formatInvoiceTypeLabel, isUnfixSaleTransterType, normalizeInvoiceTypeValue, UNFIX_SALE_TRANSTER_TYPES } from "../../types.ts";
 import { selectAllUnitByBusiness } from "../../unit/features/unitSelectors.ts";
 import { fetchAllUnit } from "../../unit/features/unitThunks.ts";
 import { selectAllWarehouse } from "../../warehouse/features/warehouseSelectors.ts";
@@ -89,6 +89,7 @@ export default function InvoiceEditForm() {
     const authUser = useSelector(selectAuth);
     const user = useSelector(selectUserById(Number(authUser?.user?.id)));
     const invoice = useSelector(selectInvoiceById);
+    const invoices = useSelector(selectAllInvoice);
     const matchingParties = useSelector(selectAllParties);
     const categories = useSelector(selectAllCategory);
     const goldCategoryId = categories.find((category) => category.name.toLowerCase() === "gold")?.id ?? 0;
@@ -121,12 +122,18 @@ export default function InvoiceEditForm() {
     }, [dispatch, id]);
 
     useEffect(() => {
+        if (["unfix_sale", ...UNFIX_SALE_TRANSTER_TYPES].includes(invoice?.invoiceType?.toLowerCase() ?? "")) {
+            dispatch(fetchAllInvoice());
+        }
+    }, [dispatch, invoice?.invoiceType]);
+
+    useEffect(() => {
         if (user?.business?.id && invoice) {
             setFormData({
                 id: invoice.id,
                 businessId: user.business.id,
                 categoryId: Number(invoice.categoryId) || goldCategoryId || 0,
-                invoiceType: invoice.invoiceType,
+                invoiceType: normalizeInvoiceTypeValue(invoice.invoiceType),
                 invoiceRefId: invoice.invoiceRefId,
                 partyId: invoice.partyId,
                 date: invoice.date,
@@ -154,6 +161,7 @@ export default function InvoiceEditForm() {
 
     const categoryItem = useSelector(selectCategoryById(Number(formData.categoryId)));
     const normalizedInvoiceType = formData.invoiceType?.toLowerCase() ?? "";
+    const invoiceTitle = formatInvoiceTypeLabel(formData.invoiceType);
     const selectedCategoryName = categoryItem?.name?.toLowerCase() ?? "gold";
     const isStockCategory = ["currency", "gold"].includes(selectedCategoryName);
     const isMandatoryWholesalePaidType = MANDATORY_WHOLESALE_PAID_TYPES.includes(normalizedInvoiceType);
@@ -164,6 +172,27 @@ export default function InvoiceEditForm() {
     const paymentCheckboxLabel = isSalePaymentType ? "Is Full Received" : "Is Full Paid";
     const getFinalInvoiceAmount = (grandTotal: number, discount: number | null | undefined) =>
         Math.max(0, (grandTotal ?? 0) - (discount ?? 0));
+    const transferSourceOptions = useMemo(
+        () =>
+            invoices
+                .filter((entry) => ["unfix_sale", ...UNFIX_SALE_TRANSTER_TYPES].includes(entry.invoiceType?.toLowerCase() ?? "") && Number(entry.id) !== Number(formData.id))
+                .map((entry) => ({
+                    label: `${entry.invoiceNo ?? `${entry.prefix ?? "INV"}-${entry.id}`} - ${entry.party?.name ?? "Unknown Party"}`,
+                    value: Number(entry.id),
+                    partyId: Number(entry.partyId) || 0,
+                })),
+        [formData.id, invoices]
+    );
+    const selectedTransferSource = useMemo(
+        () =>
+            transferSourceOptions.find((option) => option.value === Number(formData.invoiceRefId)) ?? null,
+        [formData.invoiceRefId, transferSourceOptions]
+    );
+    const selectedTransferSourceParty = useMemo(
+        () =>
+            matchingParties.find((party) => party.id === Number(selectedTransferSource?.partyId)) ?? null,
+        [matchingParties, selectedTransferSource]
+    );
     const warehouses = useSelector(selectAllWarehouse);
     const paymentAccounts = useSelector(selectAllAccount);
 
@@ -328,6 +357,12 @@ export default function InvoiceEditForm() {
                 return;
             }
 
+            if (isUnfixSaleTransterType(normalizedInvoiceType) && !(Number(formData.invoiceRefId) > 0)) {
+                toast.error("Transfer source invoice is required.");
+                setLoading(false);
+                return;
+            }
+
             const payload: Invoice = {
                 ...formData,
                 categoryId: effectiveCategoryId,
@@ -341,7 +376,7 @@ export default function InvoiceEditForm() {
             await dispatch(update(payload));
             toast.success("Invoice updated successfully!");
             //const categoryId = 0;
-            const saleTypes = ["sale", "fix_sale", "unfix_sale", "wholesale_sale"];
+            const saleTypes = ["sale", "fix_sale", "unfix_sale", "wholesale_sale", ...UNFIX_SALE_TRANSTER_TYPES];
             const invoiceType = saleTypes.includes(formData.invoiceType ?? '') ? "sale" : "purchase";
             dispatch(fetchAllInvoicePagination({ page: 1, limit: 10, type: invoiceType }));
             navigate(`/invoice/${invoice?.id}/view`);
@@ -376,8 +411,8 @@ export default function InvoiceEditForm() {
 
   return (
     <div>
-      <PageMeta title={`${formData.invoiceType ? formData.invoiceType.charAt(0).toUpperCase() + formData.invoiceType.slice(1).toLowerCase() : ''} Update`} description="Edit Invoice" />
-      <PageBreadcrumb pageTitle={`${formData.invoiceType ? formData.invoiceType.charAt(0).toUpperCase() + formData.invoiceType.slice(1).toLowerCase() : ''} Update`} />
+      <PageMeta title={`${invoiceTitle || "Invoice"} Update`} description="Edit Invoice" />
+      <PageBreadcrumb pageTitle={`${invoiceTitle || "Invoice"} Update`} />
       
       <div className="mb-4 flex justify-start">
         <div>
@@ -437,29 +472,30 @@ export default function InvoiceEditForm() {
                 </div>
 
                 {/* Invoice Ref ID */}
-                {/* { formData.invoiceType === "saleReturn" && (
+                { isUnfixSaleTransterType(normalizedInvoiceType) && (
                     <div>
-                        <Label>Search Invoice Ref (if have)</Label>
+                        <Label>Transfer From Invoice</Label>
                         <Select
-                            options={invoices.map((i) => ({
-                                label: String(i.id),
-                                value: Number(i.id),
-                                partyId: Number(i.partyId)
-                            }))}
-                            placeholder="Select invoice reference"
-
+                            options={transferSourceOptions}
+                            placeholder="Select source invoice"
+                            value={selectedTransferSource}
+                            isClearable
                             onChange={(selectedOption) => {
                                 setFormData(prev => ({
                                     ...prev,
-                                    invoiceRefId: selectedOption!.value,
-                                    partyId: selectedOption!.partyId,
+                                    invoiceRefId: Number(selectedOption?.value) || 0,
                                 }));
                             }}
                             styles={selectStyles}
                             classNamePrefix="react-select"
                         />
+                        {selectedTransferSourceParty && (
+                            <p className="mt-1 text-xs text-gray-500">
+                                Source party: {selectedTransferSourceParty.name}
+                            </p>
+                        )}
                     </div>
-                )} */}
+                )}
 
                 {/* Currency */}
                 <div>

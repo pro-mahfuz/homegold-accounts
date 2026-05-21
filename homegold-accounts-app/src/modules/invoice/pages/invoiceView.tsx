@@ -20,6 +20,7 @@ import { selectUserById } from "../../user/features/userSelectors";
 import { selectAllCategory } from "../../category/features/categorySelectors.ts";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
 import { fetchById } from "../features/invoiceThunks";
+import { isUnfixSaleTransterType } from "../../types.ts";
 
 
 export default function InvoiceView() {
@@ -256,6 +257,7 @@ export default function InvoiceView() {
                                         {   invoice?.isVat && invoice?.invoiceType === "sale" ? "TAX INVOICE" : 
                                             invoice?.invoiceType === "fix_sale" ? "FIX SALE VOUCHER" : 
                                             invoice?.invoiceType === "unfix_sale" ? "UNFIX SALE VOUCHER" : 
+                                            isUnfixSaleTransterType(invoice?.invoiceType) ? "UNFIX SALE TRANSTER VOUCHER" : 
                                             invoice?.invoiceType === "wholesale_sale" ? "WHOLESALE SALE VOUCHER" : 
                                             invoice?.invoiceType === "fix_purchase" ? "FIX PURCHASE VOUCHER" : 
                                             invoice?.invoiceType === "unfix_purchase" ? "UNFIX PURCHASE VOUCHER" : 
@@ -293,6 +295,12 @@ export default function InvoiceView() {
                                 <p className="text-lg text-left text-gray-500 dark:text-gray-400">
                                     <b>Phone:</b> {(invoice?.party?.phoneCode ?? '') + invoice?.party?.phoneNumber}
                                 </p>
+                                )}
+                                {isUnfixSaleTransterType(invoice?.invoiceType) && invoice?.referencePartyName && (
+                                    <p className="text-lg text-left text-gray-500 dark:text-gray-400">
+                                        <b>Transfer From:</b> {invoice.referencePartyName}
+                                        {invoice.referenceInvoiceNo ? ` (${invoice.referenceInvoiceNo})` : ""}
+                                    </p>
                                 )}
                             </div>
 

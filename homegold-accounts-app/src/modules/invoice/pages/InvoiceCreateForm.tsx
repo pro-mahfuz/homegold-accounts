@@ -1,4 +1,4 @@
-import { FormEvent, ChangeEvent, useState, useEffect } from "react";
+import { FormEvent, ChangeEvent, useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -22,11 +22,11 @@ import {
 } from "../../../components/ui/table/index.tsx";
 import Checkbox from "../../../components/form/input/Checkbox.tsx";
 
-import { OptionStringType, selectStyles, CurrencyOptions } from "../../types.ts";
+import { OptionStringType, selectStyles, CurrencyOptions, formatInvoiceTypeLabel, isUnfixSaleTransterType, normalizeInvoiceTypeValue, UNFIX_SALE_TRANSTER_TYPES } from "../../types.ts";
 import { Invoice } from "../features/invoiceTypes";
 import { Item } from "../../item/features/itemTypes.ts";
 import { fetchAllCategory } from "../../category/features/categoryThunks.ts";
-import { create } from "../features/invoiceThunks";
+import { create, fetchAllInvoice } from "../features/invoiceThunks";
 import { fetchParty } from "../../party/features/partyThunks.ts";
 import { AppDispatch } from "../../../store/store";
 import { selectAllParties } from "../../party/features/partySelectors";
@@ -47,18 +47,17 @@ import { fetchAllItem } from "../../item/features/itemThunks.ts";
 const MANDATORY_WHOLESALE_PAID_TYPES = ["wholesale_purchase", "wholesale_sale"];
 
 export default function InvoiceCreateForm() {
-    const { invoiceType } = useParams();
+    const { invoiceType: routeInvoiceType } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch<AppDispatch>();
+    const invoiceType = normalizeInvoiceTypeValue(routeInvoiceType);
     const purchaseRouteTypes = ["purchase", "fix_purchase", "unfix_purchase", "wholesale_purchase"];
-    const saleRouteTypes = ["sale", "fix_sale", "unfix_sale", "wholesale_sale"];
+    const saleRouteTypes = ["sale", "fix_sale", "unfix_sale", "wholesale_sale", ...UNFIX_SALE_TRANSTER_TYPES];
     const isPurchaseRoute = purchaseRouteTypes.includes(invoiceType ?? "");
     const isSaleRoute = saleRouteTypes.includes(invoiceType ?? "");
+    const isTransferMode = isUnfixSaleTransterType(invoiceType);
     const invoiceTitle = invoiceType
-        ? invoiceType
-            .split("_")
-            .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-            .join(" ")
+        ? formatInvoiceTypeLabel(invoiceType)
         : "Invoice";
 
     const authUser = useSelector(selectAuth);
@@ -70,11 +69,14 @@ export default function InvoiceCreateForm() {
         dispatch(fetchAllAccount());
         dispatch(fetchAllUnit());
         dispatch(fetchAllItem());
+        if (["unfix_sale", ...UNFIX_SALE_TRANSTER_TYPES].includes((invoiceType ?? "").toLowerCase())) {
+            dispatch(fetchAllInvoice());
+        }
         if (isSaleRoute) {
             dispatch(fetchAllWarehouse());
         }
         if ( matchingParties.length === 0) dispatch(fetchParty({ type: "all" }));
-    }, [dispatch, isSaleRoute]);
+    }, [dispatch, invoiceType, isSaleRoute]);
 
     const matchingParties = useSelector(selectAllParties);
     const categories = useSelector(selectAllCategory);
@@ -164,6 +166,27 @@ export default function InvoiceCreateForm() {
     const paymentCheckboxLabel = isSalePaymentType ? "Is Full Received" : "Is Full Paid";
     const getFinalInvoiceAmount = (grandTotal: number, discount: number | null | undefined) =>
         Math.max(0, (grandTotal ?? 0) - (discount ?? 0));
+    const transferSourceOptions = useMemo(
+        () =>
+            invoices
+                .filter((invoice) => ["unfix_sale", ...UNFIX_SALE_TRANSTER_TYPES].includes(invoice.invoiceType?.toLowerCase() ?? ""))
+                .map((invoice) => ({
+                    label: `${invoice.invoiceNo ?? `${invoice.prefix ?? "INV"}-${invoice.id}`} - ${invoice.party?.name ?? "Unknown Party"}`,
+                    value: Number(invoice.id),
+                    partyId: Number(invoice.partyId) || 0,
+                })),
+        [invoices]
+    );
+    const selectedTransferSource = useMemo(
+        () =>
+            transferSourceOptions.find((option) => option.value === Number(formData.invoiceRefId)) ?? null,
+        [formData.invoiceRefId, transferSourceOptions]
+    );
+    const selectedTransferSourceParty = useMemo(
+        () =>
+            matchingParties.find((party) => party.id === Number(selectedTransferSource?.partyId)) ?? null,
+        [matchingParties, selectedTransferSource]
+    );
 
     useEffect(() => {
         if (!formData.isFullPaid) return;
@@ -233,6 +256,12 @@ export default function InvoiceCreateForm() {
                 return;
             }
 
+            if (isTransferMode && !(Number(formData.invoiceRefId) > 0)) {
+                toast.error("Transfer source invoice is required.");
+                setLoading(false);
+                return;
+            }
+
             const payload: Invoice = {
                 ...formData,
                 categoryId: effectiveCategoryId,
@@ -246,7 +275,7 @@ export default function InvoiceCreateForm() {
             const createdInvoice = unwrapResult(result);
 
             toast.success("Invoice created successfully!");
-            const invoiceType = ["sale", "fix_sale", "unfix_sale", "wholesale_sale"].includes(formData.invoiceType ?? '')
+            const invoiceType = ["sale", "fix_sale", "unfix_sale", "wholesale_sale", ...UNFIX_SALE_TRANSTER_TYPES].includes(formData.invoiceType ?? '')
             ? "sale"
             : "purchase";
 
@@ -472,28 +501,28 @@ export default function InvoiceCreateForm() {
                     </div>
 
                     {/* Invoice Ref ID */}
-                    { formData.invoiceType === "saleReturn" && (
+                    { isUnfixSaleTransterType(normalizedInvoiceType) && (
                         <div>
-                            <Label>Search Invoice Ref (if have)</Label>
+                            <Label>Transfer From Invoice</Label>
                             <Select
-                                options={invoices.map((i) => ({
-                                    label: String(i.id),
-                                    value: Number(i.id),
-                                    partyId: Number(i.partyId)
-                                }))}
-                                placeholder="Select invoice reference"
-
+                                options={transferSourceOptions}
+                                placeholder="Select source invoice"
+                                value={selectedTransferSource}
+                                isClearable
                                 onChange={(selectedOption) => {
                                     setFormData(prev => ({
                                         ...prev,
-                                        invoiceRefId: selectedOption!.value,
-                                        partyId: selectedOption!.partyId,
+                                        invoiceRefId: Number(selectedOption?.value) || 0,
                                     }));
                                 }}
                                 styles={selectStyles}
                                 classNamePrefix="react-select"
-                                required
                             />
+                            {selectedTransferSourceParty && (
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Source party: {selectedTransferSourceParty.name}
+                                </p>
+                            )}
                         </div>
                     )}
 

@@ -75,6 +75,34 @@ export const getMovementTypeLabel = (movementType?: string) =>
   movementType ??
   "";
 
+export const UNFIX_SALE_TRANSTER_TYPE = "unfix_sale_transter";
+export const LEGACY_UNFIX_TRANSTER_TYPE = "unfix_transter";
+export const UNFIX_SALE_TRANSTER_TYPES = [
+  UNFIX_SALE_TRANSTER_TYPE,
+  LEGACY_UNFIX_TRANSTER_TYPE,
+];
+
+export const isUnfixSaleTransterType = (invoiceType?: string) =>
+  UNFIX_SALE_TRANSTER_TYPES.includes((invoiceType ?? "").toLowerCase());
+
+export const normalizeInvoiceTypeValue = (invoiceType?: string) =>
+  isUnfixSaleTransterType(invoiceType) ? UNFIX_SALE_TRANSTER_TYPE : invoiceType ?? "";
+
+export const formatInvoiceTypeLabel = (invoiceType?: string) => {
+  if (!invoiceType) {
+    return "";
+  }
+
+  if (isUnfixSaleTransterType(invoiceType)) {
+    return "Unfix Sale Transter";
+  }
+
+  return invoiceType
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+};
+
 
 export const selectStyles = {
   control: (base: any, state: any) => ({

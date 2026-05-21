@@ -1,12 +1,18 @@
 import { Invoice, InvoiceItem, User, Payment, Item, Warehouse, Stock, Ledger, Category, Party, sequelize } from "../../models/model.js";
 import { fn, col, Op, Sequelize } from "sequelize";
 
+const UNFIX_TRANSFER_TYPE = "unfix_sale_transter";
+const LEGACY_UNFIX_TRANSFER_TYPE = "unfix_transter";
+const UNFIX_TRANSFER_TYPES = [UNFIX_TRANSFER_TYPE, LEGACY_UNFIX_TRANSFER_TYPE];
+const UNFIX_TRANSFER_SOURCE_TYPES = ["unfix_sale", ...UNFIX_TRANSFER_TYPES];
 const AUTO_PURCHASE_STOCK_TYPES = ["wholesale_purchase", "unfix_purchase", "fix_purchase"];
 const AUTO_SALE_STOCK_TYPES = ["wholesale_sale", "unfix_sale", "fix_sale"];
-const AUTO_STOCK_MANAGED_TYPES = ["sale", ...AUTO_PURCHASE_STOCK_TYPES, ...AUTO_SALE_STOCK_TYPES, "fix_sale", "fix_purchase", "unfix_purchase"];
+const AUTO_STOCK_MANAGED_TYPES = ["sale", ...AUTO_PURCHASE_STOCK_TYPES, ...AUTO_SALE_STOCK_TYPES, ...UNFIX_TRANSFER_TYPES, "fix_sale", "fix_purchase", "unfix_purchase"];
 const STOCK_PREFIX_MAP = {
   stock_in: "STI",
   stock_out: "STO",
+  stock_transfer: "STT",
+  stock_transfer_return: "STR",
   stock_adj: "STA",
 };
 const INVOICE_PAYMENT_CONFIG = {
@@ -31,6 +37,12 @@ const INVOICE_PAYMENT_CONFIG = {
 };
 const STOCK_LEDGER_CATEGORY_NAMES = ["currency", "gold"];
 const MANDATORY_WHOLESALE_PAID_TYPES = ["wholesale_purchase", "wholesale_sale"];
+
+const isUnfixTransferType = (invoiceType) =>
+  UNFIX_TRANSFER_TYPES.includes(String(invoiceType || "").toLowerCase());
+
+const normalizeTransferInvoiceType = (invoiceType) =>
+  isUnfixTransferType(invoiceType) ? UNFIX_TRANSFER_TYPE : invoiceType;
 
 const requiresMandatoryWholesalePaidFields = (invoiceType) =>
   MANDATORY_WHOLESALE_PAID_TYPES.includes(invoiceType?.toLowerCase());
@@ -170,6 +182,364 @@ const getInvoiceLedgerPosting = ({
     creditQuantity,
     stockCurrency,
   };
+};
+
+const getUnfixSaleTransferAvailableStock = async ({
+  businessId,
+  partyId,
+  itemId,
+  unit,
+  excludeInvoiceId = null,
+  transaction,
+}) => {
+  const where = {
+    businessId,
+    partyId,
+    itemId,
+    unit,
+  };
+
+  if (Number(excludeInvoiceId) > 0) {
+    where[Op.or] = [
+      { invoiceId: null },
+      { invoiceId: { [Op.ne]: Number(excludeInvoiceId) } },
+    ];
+  }
+
+  const [summary] = await Stock.findAll({
+    attributes: [
+      [
+        fn(
+          "SUM",
+          Sequelize.literal(`
+            CASE
+              WHEN invoiceType IN ('unfix_sale', 'unfix_sale_transter', 'unfix_transter') OR movementType = 'stock_transfer'
+              THEN quantity
+              ELSE 0
+            END
+          `)
+        ),
+        "totalReceived",
+      ],
+      [
+        fn(
+          "SUM",
+          Sequelize.literal(`
+            CASE
+              WHEN invoiceType = 'fix_sale' OR movementType = 'stock_transfer_return'
+              THEN quantity
+              ELSE 0
+            END
+          `)
+        ),
+        "totalReleased",
+      ],
+    ],
+    where,
+    raw: true,
+    transaction,
+  });
+
+  const totalReceived = Number(summary?.totalReceived) || 0;
+  const totalReleased = Number(summary?.totalReleased) || 0;
+
+  return {
+    totalReceived,
+    totalReleased,
+    availableQty: totalReceived - totalReleased,
+  };
+};
+
+const resolveTransferWarehouseId = (item, referenceItem) => {
+  const currentWarehouseId = normalizeOptionalId(item?.warehouseId);
+  if (currentWarehouseId) {
+    return currentWarehouseId;
+  }
+
+  return normalizeOptionalId(referenceItem?.warehouseId);
+};
+
+const resolveUnfixSaleTransferContext = async ({
+  invoiceType,
+  invoiceRefId,
+  currentInvoiceId = null,
+  businessId,
+  destinationPartyId,
+  items,
+  transaction,
+}) => {
+  const normalizedType = invoiceType?.toLowerCase();
+  const normalizedInvoiceRefId = Number(invoiceRefId) || 0;
+
+  if (!isUnfixTransferType(normalizedType) || normalizedInvoiceRefId <= 0) {
+    return null;
+  }
+
+  if (Number(currentInvoiceId) > 0 && normalizedInvoiceRefId === Number(currentInvoiceId)) {
+    throw {
+      status: 400,
+      message: "Transfer source invoice cannot be the same invoice.",
+    };
+  }
+
+  const referenceInvoice = await Invoice.findByPk(normalizedInvoiceRefId, {
+    include: [{ model: InvoiceItem, as: "items" }],
+    transaction,
+  });
+
+  if (!referenceInvoice) {
+    throw {
+      status: 404,
+      message: "Transfer source invoice not found.",
+    };
+  }
+
+  if (!UNFIX_TRANSFER_SOURCE_TYPES.includes(referenceInvoice.invoiceType?.toLowerCase())) {
+    throw {
+      status: 400,
+      message: "Transfer source invoice must be an unfix sale or unfix sale transter invoice.",
+    };
+  }
+
+  if (Number(referenceInvoice.businessId) !== Number(businessId)) {
+    throw {
+      status: 400,
+      message: "Transfer source invoice belongs to a different business.",
+    };
+  }
+
+  const sourcePartyId = Number(referenceInvoice.partyId) || 0;
+  const normalizedDestinationPartyId = Number(destinationPartyId) || 0;
+
+  if (!sourcePartyId) {
+    throw {
+      status: 400,
+      message: "Transfer source party is missing.",
+    };
+  }
+
+  if (!normalizedDestinationPartyId) {
+    throw {
+      status: 400,
+      message: "Destination party is required for unfix sale transter invoice.",
+    };
+  }
+
+  if (sourcePartyId === normalizedDestinationPartyId) {
+    throw {
+      status: 400,
+      message: "Source party and destination party must be different for unfix sale transter invoice.",
+    };
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw {
+      status: 400,
+      message: "Transfer items are required for unfix sale transter invoice.",
+    };
+  }
+
+  const [sourceParty, destinationParty] = await Promise.all([
+    Party.findByPk(sourcePartyId, { transaction }),
+    Party.findByPk(normalizedDestinationPartyId, { transaction }),
+  ]);
+
+  if (!sourceParty) {
+    throw {
+      status: 404,
+      message: "Transfer source party not found.",
+    };
+  }
+
+  if (!destinationParty) {
+    throw {
+      status: 404,
+      message: "Transfer destination party not found.",
+    };
+  }
+
+  const normalizedItems = items
+    .filter((item) => Number(item?.itemId) > 0 && Number(item?.quantity) > 0 && item?.unit)
+    .map((item) => {
+      const referenceItem = (referenceInvoice.items || []).find(
+        (refItem) =>
+          Number(refItem.itemId) === Number(item.itemId) &&
+          String(refItem.unit || "").trim().toLowerCase() === String(item.unit || "").trim().toLowerCase()
+      );
+
+      if (!referenceItem) {
+        throw {
+          status: 400,
+          message: `${item.name || "Selected item"} does not exist in the transfer source invoice.`,
+        };
+      }
+
+      return {
+        ...item,
+        itemId: Number(item.itemId) || 0,
+        quantity: Number(item.quantity) || 0,
+        unit: item.unit,
+        name: item.name || referenceItem.name || null,
+        warehouseId: resolveTransferWarehouseId(item, referenceItem),
+        referenceItem,
+      };
+    });
+
+  for (const item of normalizedItems) {
+    const stockSummary = await getUnfixSaleTransferAvailableStock({
+      businessId,
+      partyId: sourcePartyId,
+      itemId: item.itemId,
+      unit: item.unit,
+      excludeInvoiceId: currentInvoiceId,
+      transaction,
+    });
+
+    if (stockSummary.availableQty < item.quantity) {
+      throw {
+        status: 400,
+        message: `Insufficient transfer stock with ${sourceParty.name} for ${item.name || "item"}. Available: ${stockSummary.availableQty.toFixed(2)} ${item.unit}`,
+      };
+    }
+  }
+
+  return {
+    referenceInvoice,
+    sourceParty,
+    destinationParty,
+    items: normalizedItems,
+  };
+};
+
+const normalizeInvoiceItemsForTransfer = (items, transferContext) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+
+  if (!transferContext) {
+    return items;
+  }
+
+  return items.map((item) => {
+    const matchedItem = transferContext.items.find(
+      (transferItem) =>
+        Number(transferItem.itemId) === Number(item.itemId) &&
+        String(transferItem.unit || "").trim().toLowerCase() === String(item.unit || "").trim().toLowerCase()
+    );
+
+    if (!matchedItem) {
+      return item;
+    }
+
+    return {
+      ...item,
+      name: item.name || matchedItem.name || item.name,
+      warehouseId: normalizeOptionalId(item.warehouseId) || matchedItem.warehouseId || null,
+    };
+  });
+};
+
+const createUnfixSaleTransferSourceAdjustments = async ({
+  invoice,
+  transferContext,
+  categoryName,
+  transaction,
+  updatedBy = null,
+}) => {
+  if (!transferContext || !Array.isArray(transferContext.items) || transferContext.items.length === 0) {
+    return [];
+  }
+
+  const isStockLedgerCategory = STOCK_LEDGER_CATEGORY_NAMES.includes(categoryName?.toLowerCase());
+  const createdStocks = [];
+
+  for (const item of transferContext.items) {
+    const sourceStock = await Stock.create(
+      {
+        businessId: invoice.businessId,
+        date: invoice.date,
+        prefix: STOCK_PREFIX_MAP.stock_transfer_return,
+        invoiceType: UNFIX_TRANSFER_TYPE,
+        invoiceId: invoice.id,
+        partyId: transferContext.sourceParty.id,
+        categoryId: invoice.categoryId,
+        itemId: item.itemId,
+        movementType: "stock_transfer_return",
+        warehouseId: item.warehouseId ?? null,
+        bankId: null,
+        quantity: item.quantity,
+        unit: item.unit,
+        createdBy: invoice.createdBy,
+        updatedBy,
+      },
+      { transaction }
+    );
+
+    const destinationStock = await Stock.create(
+      {
+        businessId: invoice.businessId,
+        date: invoice.date,
+        prefix: STOCK_PREFIX_MAP.stock_transfer,
+        invoiceType: UNFIX_TRANSFER_TYPE,
+        invoiceId: invoice.id,
+        partyId: transferContext.destinationParty.id,
+        categoryId: invoice.categoryId,
+        itemId: item.itemId,
+        movementType: "stock_transfer",
+        warehouseId: item.warehouseId ?? null,
+        bankId: null,
+        quantity: item.quantity,
+        unit: item.unit,
+        createdBy: invoice.createdBy,
+        updatedBy,
+      },
+      { transaction }
+    );
+
+    if (isStockLedgerCategory) {
+      await Ledger.bulkCreate(
+        [
+          {
+            businessId: invoice.businessId,
+            categoryId: invoice.categoryId,
+            transactionType: UNFIX_TRANSFER_TYPE,
+            partyId: transferContext.sourceParty.id,
+            date: invoice.date,
+            invoiceId: invoice.id,
+            stockId: sourceStock.id,
+            description: `Transferred to ${transferContext.destinationParty.name}: ${item.name} x${item.quantity}${invoice.note ? ` | Note: ${invoice.note}` : ""}`,
+            currency: null,
+            stockCurrency: item.name ?? null,
+            debitQty: item.quantity,
+            creditQty: 0,
+            createdBy: invoice.createdBy,
+            updatedBy,
+          },
+          {
+            businessId: invoice.businessId,
+            categoryId: invoice.categoryId,
+            transactionType: UNFIX_TRANSFER_TYPE,
+            partyId: transferContext.destinationParty.id,
+            date: invoice.date,
+            invoiceId: invoice.id,
+            stockId: destinationStock.id,
+            description: `Transferred from ${transferContext.sourceParty.name}: ${item.name} x${item.quantity}${invoice.note ? ` | Note: ${invoice.note}` : ""}`,
+            currency: null,
+            stockCurrency: item.name ?? null,
+            debitQty: 0,
+            creditQty: item.quantity,
+            createdBy: invoice.createdBy,
+            updatedBy,
+          },
+        ],
+        { transaction }
+      );
+    }
+
+    createdStocks.push(sourceStock, destinationStock);
+  }
+
+  return createdStocks;
 };
 
 const getWarehouseAvailableStock = async ({
@@ -363,7 +733,7 @@ const syncInvoiceAutoPayment = async ({
       });
     }
 
-    if (["unfix_sale", "fix_sale"].includes(type)) {
+    if (["unfix_sale", "fix_sale"].includes(type) || isUnfixTransferType(type)) {
       await clearInvoicePaymentsByType({
         invoiceId: invoice.id,
         paymentType: "payment_in",
@@ -649,7 +1019,7 @@ export const getAllInvoiceWithPagination = async (
     if (type === "purchase") {
       typeList = ["purchase", "wholesale_purchase", "fix_purchase", "unfix_purchase"];
     } else if (type === "sale") {
-      typeList = ["sale", "wholesale_sale", "fix_sale", "unfix_sale"];
+      typeList = ["sale", "wholesale_sale", "fix_sale", "unfix_sale", ...UNFIX_TRANSFER_TYPES];
     } else {
       typeList = Array.isArray(type) ? type : [type];
     }
@@ -1422,6 +1792,7 @@ export const getSalePaymentReport = async () => {
 
 export const createInvoice = async (req) => {
   const { items, ...invoiceData } = req.body;
+  invoiceData.invoiceType = normalizeTransferInvoiceType(invoiceData.invoiceType);
   const requestedType = invoiceData.invoiceType?.toLowerCase();
 
   ensureMandatoryWholesalePaidFields({
@@ -1442,6 +1813,8 @@ export const createInvoice = async (req) => {
       wholesale_purchase: "WPC",
       fix_sale: "FSL",
       unfix_sale: "USL",
+      [UNFIX_TRANSFER_TYPE]: "UST",
+      [LEGACY_UNFIX_TRANSFER_TYPE]: "UST",
       wholesale_sale: "WSL",
       clearance_bill: "CBO",
     };
@@ -1449,12 +1822,22 @@ export const createInvoice = async (req) => {
     const prefix = prefixMap[invoiceData.invoiceType?.toLowerCase()] || "";
     invoiceData.prefix = prefix;
 
+    const transferContext = await resolveUnfixSaleTransferContext({
+      invoiceType: invoiceData.invoiceType,
+      invoiceRefId: invoiceData.invoiceRefId,
+      businessId: invoiceData.businessId,
+      destinationPartyId: invoiceData.partyId,
+      items,
+      transaction: t,
+    });
+    const normalizedItems = normalizeInvoiceItemsForTransfer(items, transferContext);
+
     // Step 1: Create Invoice
     const invoice = await Invoice.create(invoiceData, { transaction: t });
 
     // Step 2: Create Invoice Items
-    if (items && Array.isArray(items) && items.length > 0) {
-      const invoiceItems = items.map((item) => ({
+    if (normalizedItems && Array.isArray(normalizedItems) && normalizedItems.length > 0) {
+      const invoiceItems = normalizedItems.map((item) => ({
         invoiceId: invoice.id,
         itemId: item.itemId,
         uniqueId: item.uniqueId,
@@ -1492,12 +1875,12 @@ export const createInvoice = async (req) => {
     } = getInvoiceLedgerPosting({
       invoiceType: invoice.invoiceType,
       grandTotal: invoice.grandTotal,
-      items,
+      items: normalizedItems,
       categoryName: category?.name,
     });
 
     // Step 3: create ledger
-    if (invoice.system === 1) {
+    if (invoice.system === 1 && !isUnfixTransferType(type)) {
       await Ledger.create(
         {
           businessId: invoice.businessId,
@@ -1506,10 +1889,10 @@ export const createInvoice = async (req) => {
           partyId: invoice.partyId,
           date: invoice.date,
           invoiceId: invoice.id,
-          description: Array.isArray(items)
-          ? `${items
+          description: Array.isArray(normalizedItems)
+          ? `${normalizedItems
               .map((item) => `${item.name} x${item.quantity} @${item.price}`)
-              .join(', ')}${invoice.note ? `<br />Note: ${invoice.note}` : ''}`
+              .join(', ')}${transferContext ? `<br />Transfer From: ${transferContext.sourceParty.name}` : ''}${invoice.note ? `<br />Note: ${invoice.note}` : ''}`
           : '',
           currency: req.body.currency,
           stockCurrency,
@@ -1527,7 +1910,7 @@ export const createInvoice = async (req) => {
     if (invoice.system === 1 && AUTO_PURCHASE_STOCK_TYPES.includes(type)) {
       await createAutoStockEntries({
         invoice,
-        items,
+        items: normalizedItems,
         movementType: "stock_in",
         transaction: t,
         createLedgerEntry: type === "fix_purchase" ? false : shouldCreateAutoStockLedger(type, category?.name),
@@ -1535,26 +1918,37 @@ export const createInvoice = async (req) => {
     }
 
     if (invoice.system === 1 && AUTO_SALE_STOCK_TYPES.includes(type)) {
-      await ensureAutoSaleItemsReady({
-        invoice,
-        items,
-        categoryName: category?.name,
-        transaction: t,
-      });
+      if (!transferContext) {
+        await ensureAutoSaleItemsReady({
+          invoice,
+          items: normalizedItems,
+          categoryName: category?.name,
+          transaction: t,
+        });
+      }
 
       await createAutoStockEntries({
         invoice,
-        items,
+        items: normalizedItems,
         movementType: "stock_out",
         transaction: t,
         createLedgerEntry: ["unfix_sale", "fix_sale"].includes(type) ? false : shouldCreateAutoStockLedger(type, category?.name),
       });
     }
 
+    if (isUnfixTransferType(type) && transferContext) {
+      await createUnfixSaleTransferSourceAdjustments({
+        invoice,
+        transferContext,
+        categoryName: category?.name,
+        transaction: t,
+      });
+    }
+
     if (category?.name && !["currency", "gold"].includes(category.name.toLowerCase())) {
       if ( invoice.invoiceType === "sale" && invoice.system === 1) {
         await Promise.all(
-          items.map(async (item) =>{
+          normalizedItems.map(async (item) =>{
             const prefixMap = {
               stock_in: "STI",
               stock_out: "STO",
@@ -1665,22 +2059,39 @@ export const getInvoiceById = async (id) => {
         ], 
     });
 
-    let invoiceNo = data.prefix + "-" + String(data.id).padStart(6, "0");
-    let vatInvoiceRefNo = data.vatInvoiceNo > 0 ? data.prefix + "-" + String(data.vatInvoiceNo).padStart(6, "0") : null;
-    
     if (!data) {
         throw { status: 404, message: "Invoice not found" };
     }
+
+    let invoiceNo = data.prefix + "-" + String(data.id).padStart(6, "0");
+    let vatInvoiceRefNo = data.vatInvoiceNo > 0 ? data.prefix + "-" + String(data.vatInvoiceNo).padStart(6, "0") : null;
+
+    let referenceInvoiceNo = null;
+    let referencePartyName = null;
+    if (Number(data.invoiceRefId) > 0) {
+      const referenceInvoice = await Invoice.findByPk(data.invoiceRefId, {
+        include: [{ model: Party, as: "party" }],
+      });
+
+      if (referenceInvoice) {
+        referenceInvoiceNo = `${referenceInvoice.prefix}-${String(referenceInvoice.id).padStart(6, "0")}`;
+        referencePartyName = referenceInvoice.party?.name ?? null;
+      }
+    }
+
     return {
     ...data.toJSON(),
     invoiceNo,
     vatInvoiceRefNo,
+    referenceInvoiceNo,
+    referencePartyName,
   };
 }
 
 export const updateInvoice = async (req) => {
     const { id } = req.body;
     const { items, ...invoiceData } = req.body;
+    invoiceData.invoiceType = normalizeTransferInvoiceType(invoiceData.invoiceType);
     const requestedType = invoiceData.invoiceType?.toLowerCase();
     
     // Mapping Invoice Prefix
@@ -1705,6 +2116,16 @@ export const updateInvoice = async (req) => {
         // Step 2: Update invoice
         const updatedInvoice = await invoice.update(invoiceData, { transaction: t });
         const nextInvoiceType = updatedInvoice.invoiceType?.toLowerCase();
+        const transferContext = await resolveUnfixSaleTransferContext({
+          invoiceType: updatedInvoice.invoiceType,
+          invoiceRefId: updatedInvoice.invoiceRefId,
+          currentInvoiceId: updatedInvoice.id,
+          businessId: updatedInvoice.businessId,
+          destinationPartyId: updatedInvoice.partyId,
+          items,
+          transaction: t,
+        });
+        const normalizedItems = normalizeInvoiceItemsForTransfer(items, transferContext);
 
         // Step 3: Remove old items and stocks
         await InvoiceItem.destroy({ where: { invoiceId: id }, transaction: t });
@@ -1716,8 +2137,8 @@ export const updateInvoice = async (req) => {
         }
 
         // Step 4: Re-create Invoice Items and Stocks
-        if (items && Array.isArray(items)) {
-            const invoiceItems = items.map((item) => ({
+        if (normalizedItems && Array.isArray(normalizedItems)) {
+            const invoiceItems = normalizedItems.map((item) => ({
                 uniqueId: item.uniqueId,
                 invoiceId: invoice.id,
                 itemId: item.itemId,
@@ -1765,40 +2186,42 @@ export const updateInvoice = async (req) => {
         } = getInvoiceLedgerPosting({
           invoiceType: invoice.invoiceType,
           grandTotal: invoice.grandTotal,
-          items,
+          items: normalizedItems,
           categoryName: category?.name,
         });
 
         // Step 3: create ledger
-        await Ledger.create(
-          {
-            businessId: invoice.businessId,
-            categoryId: invoice.categoryId,
-            transactionType: invoice.invoiceType,
-            partyId: invoice.partyId,
-            date: invoice.date,
-            invoiceId: invoice.id,
-            description: Array.isArray(items)
-            ? `${items
-                .map((item) => `${item.name} x${item.quantity} @${item.price}`)
-                .join('<br />')}${invoice.note ? `<br />Note: ${invoice.note}` : ''}`
-            : '',
-            currency: req.body.currency,
-            debit: debitAmount,
-            credit: creditAmount,
-            stockCurrency,
-            debitQty: debitQuantity,
-            creditQty: creditQuantity,
-            createdBy: invoice.createdBy,
-          },
-          { transaction: t }
-        );
+        if (!isUnfixTransferType(nextInvoiceType)) {
+          await Ledger.create(
+            {
+              businessId: invoice.businessId,
+              categoryId: invoice.categoryId,
+              transactionType: invoice.invoiceType,
+              partyId: invoice.partyId,
+              date: invoice.date,
+              invoiceId: invoice.id,
+              description: Array.isArray(normalizedItems)
+              ? `${normalizedItems
+                  .map((item) => `${item.name} x${item.quantity} @${item.price}`)
+                  .join('<br />')}${transferContext ? `<br />Transfer From: ${transferContext.sourceParty.name}` : ''}${invoice.note ? `<br />Note: ${invoice.note}` : ''}`
+              : '',
+              currency: req.body.currency,
+              debit: debitAmount,
+              credit: creditAmount,
+              stockCurrency,
+              debitQty: debitQuantity,
+              creditQty: creditQuantity,
+              createdBy: invoice.createdBy,
+            },
+            { transaction: t }
+          );
+        }
 
 
         if (updatedInvoice.system === 1 && AUTO_PURCHASE_STOCK_TYPES.includes(nextInvoiceType)) {
           await createAutoStockEntries({
             invoice: updatedInvoice,
-            items,
+            items: normalizedItems,
             movementType: "stock_in",
             transaction: t,
             updatedBy: updatedInvoice.updatedBy,
@@ -1807,16 +2230,18 @@ export const updateInvoice = async (req) => {
         }
 
         if (updatedInvoice.system === 1 && AUTO_SALE_STOCK_TYPES.includes(nextInvoiceType)) {
-          await ensureAutoSaleItemsReady({
-            invoice: updatedInvoice,
-            items,
-            categoryName: category?.name,
-            transaction: t,
-          });
+          if (!transferContext) {
+            await ensureAutoSaleItemsReady({
+              invoice: updatedInvoice,
+              items: normalizedItems,
+              categoryName: category?.name,
+              transaction: t,
+            });
+          }
 
           await createAutoStockEntries({
             invoice: updatedInvoice,
-            items,
+            items: normalizedItems,
             movementType: "stock_out",
             transaction: t,
             updatedBy: updatedInvoice.updatedBy,
@@ -1824,11 +2249,21 @@ export const updateInvoice = async (req) => {
           });
         }
 
+        if (isUnfixTransferType(nextInvoiceType) && transferContext) {
+          await createUnfixSaleTransferSourceAdjustments({
+            invoice: updatedInvoice,
+            transferContext,
+            categoryName: category?.name,
+            transaction: t,
+            updatedBy: updatedInvoice.updatedBy,
+          });
+        }
+
         if (category?.name && !["currency", "gold"].includes(category.name.toLowerCase())) {
           // Create Stock Automatically if making sale
           if ( invoice.invoiceType === "sale") {
             await Promise.all(
-              items.map(async (item) =>{
+              normalizedItems.map(async (item) =>{
                 const prefixMap = {
                   stock_in: "STI",
                   stock_out: "STO",
@@ -2070,6 +2505,8 @@ export const invoicePrefixMapping = (invoiceData) => {
     wholesale_purchase: "WPC",
     fix_sale: "FSL",
     unfix_sale: "USL",
+    [UNFIX_TRANSFER_TYPE]: "UST",
+    [LEGACY_UNFIX_TRANSFER_TYPE]: "UST",
     wholesale_sale: "WSL",
     clearance_bill: "CBO",
   };
