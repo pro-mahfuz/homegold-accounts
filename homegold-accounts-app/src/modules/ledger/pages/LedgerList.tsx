@@ -90,6 +90,10 @@ export default function LedgerList() {
 
   // Apply ledger filters
   const filteredLedgers = useMemo(() => {
+    if (isAllLedger && selectedPartyId <= 0) {
+      return [];
+    }
+
     return ledgers.filter((ledger) => {
       if (selectedPartyId > 0 && Number(ledger.partyId) !== selectedPartyId) {
         return false;
@@ -114,7 +118,7 @@ export default function LedgerList() {
 
       return true;
     });
-  }, [ledgers, selectedPartyId, selectedTransactionType, fromDate, toDate]);
+  }, [ledgers, selectedPartyId, selectedTransactionType, fromDate, toDate, isAllLedger]);
 
   const getPaymentBalanceKey = (ledger: {
     currency?: string | null;
@@ -267,16 +271,24 @@ export default function LedgerList() {
     });
   }, [filteredLedgers]);
 
+  const shouldDisablePagination = isAllLedger && selectedPartyId > 0;
+
   // Pagination
-  const totalPages = Math.ceil(ledgersWithBalance.length / itemsPerPage) || 1;
-  const paginatedLedgers = useMemo(() => {
+  const totalPages = shouldDisablePagination
+    ? 1
+    : Math.ceil(ledgersWithBalance.length / itemsPerPage) || 1;
+  const displayedLedgers = useMemo(() => {
+    if (shouldDisablePagination) {
+      return ledgersWithBalance;
+    }
+
     const start = (currentPage - 1) * itemsPerPage;
     return ledgersWithBalance.slice(start, start + itemsPerPage);
-  }, [ledgersWithBalance, currentPage, itemsPerPage]);
+  }, [ledgersWithBalance, currentPage, itemsPerPage, shouldDisablePagination]);
 
   useEffect(() => {
-    setCurrentPage(totalPages);
-  }, [selectedPartyId, selectedTransactionType, fromDate, toDate, totalPages]);
+    setCurrentPage(shouldDisablePagination ? 1 : totalPages);
+  }, [selectedPartyId, selectedTransactionType, fromDate, toDate, totalPages, shouldDisablePagination]);
 
   type CurrencyTotals = {
     purchaseDebit: number;
@@ -1105,14 +1117,14 @@ export default function LedgerList() {
                             Loading data...
                           </TableCell>
                         </TableRow>
-                      ) : paginatedLedgers.length === 0 ? (
+                      ) : displayedLedgers.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={ledgerTableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
                             No data found.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        paginatedLedgers.map((ledger, index) => (
+                        displayedLedgers.map((ledger, index) => (
                           <TableRow key={`primary-${ledger.id}`} className="border-b border-gray-100 dark:border-white/[0.05]">
                             <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
                               {index + 1}
@@ -1240,14 +1252,14 @@ export default function LedgerList() {
                           Loading data...
                         </TableCell>
                       </TableRow>
-                    ) : paginatedLedgers.length === 0 ? (
+                    ) : displayedLedgers.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={ledgerTableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
                           No data found.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedLedgers.map((ledger, index) => (
+                      displayedLedgers.map((ledger, index) => (
                         <TableRow key={`primary-${ledger.id}`} className="border-b border-gray-100 dark:border-white/[0.05]">
                           <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
                             {index + 1}
@@ -1322,13 +1334,15 @@ export default function LedgerList() {
               </div>
 
               {/* Pagination Controls */}
-              <PaginationControl
-                currentPage={currentPage}
-                totalPages={totalPages}
-                itemsPerPage={itemsPerPage}
-                onPageChange={setCurrentPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
+              {!isAllLedger && !shouldDisablePagination && (
+                <PaginationControl
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  onItemsPerPageChange={setItemsPerPage}
+                />
+              )}
             </div>
           </div>
         </div>

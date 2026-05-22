@@ -42,6 +42,8 @@ export interface Ledger {
   updatedBy?: number;
   createdByUserName?: string;
   updatedByUserName?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LedgerState {

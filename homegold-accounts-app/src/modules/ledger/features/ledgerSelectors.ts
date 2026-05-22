@@ -5,6 +5,18 @@ import { createSelector } from 'reselect';
 const compareLedgerAscending = (a: Ledger, b: Ledger) => {
   const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
   if (dateDiff !== 0) return dateDiff;
+
+  const stableReferenceA =
+    Number(a.invoiceId) || Number(a.paymentId) || Number(a.stockId) || Number(a.id) || 0;
+  const stableReferenceB =
+    Number(b.invoiceId) || Number(b.paymentId) || Number(b.stockId) || Number(b.id) || 0;
+  const referenceDiff = stableReferenceA - stableReferenceB;
+  if (referenceDiff !== 0) return referenceDiff;
+
+  const createdAtDiff =
+    new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+  if (createdAtDiff !== 0) return createdAtDiff;
+
   return (a.id || 0) - (b.id || 0);
 };
 

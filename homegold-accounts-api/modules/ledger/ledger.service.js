@@ -1,5 +1,26 @@
 import { Ledger, Payment, User, Bank, Invoice, Stock, InvoiceItem, Party, Category } from "../../models/model.js";
 
+const getLedgerStableReferenceId = (ledger) =>
+  Number(ledger.invoiceId) ||
+  Number(ledger.paymentId) ||
+  Number(ledger.stockId) ||
+  Number(ledger.id) ||
+  0;
+
+const compareLedgerAscending = (a, b) => {
+  const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+  if (dateDiff !== 0) return dateDiff;
+
+  const referenceDiff = getLedgerStableReferenceId(a) - getLedgerStableReferenceId(b);
+  if (referenceDiff !== 0) return referenceDiff;
+
+  const createdAtDiff =
+    new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+  if (createdAtDiff !== 0) return createdAtDiff;
+
+  return (a.id || 0) - (b.id || 0);
+};
+
 export const getAllLedger = async () => {
   const data = await Ledger.findAll({
     include: [
@@ -53,7 +74,7 @@ export const getAllLedger = async () => {
       updatedByUserName: ledgerJson.updatedByUser?.name ?? null,
       ...ledgerJson,
     };
-  });
+  }).sort(compareLedgerAscending);
 };
 
 export const getCustomerLedgerData = async () => {
@@ -109,7 +130,7 @@ export const getCustomerLedgerData = async () => {
       updatedByUserName: ledgerJson.updatedByUser?.name ?? null,
       ...ledgerJson,
     };
-  });
+  }).sort(compareLedgerAscending);
 };
 
 export const createLedger = async (req) => {

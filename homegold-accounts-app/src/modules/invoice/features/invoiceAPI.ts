@@ -13,7 +13,14 @@ export const fetchAll = async () => {
 
 export const fetchAllWithPagination = async ({ page = 1, limit = 10, type="", filterText="" }: { page?: number; limit?: number, type?: string, filterText?:string }) => {
   try {
-    const res = await axiosInstance.get(`protected/invoice/list?page=${page}&limit=${limit}&type=${type}&filterText=${filterText}`);
+    const res = await axiosInstance.get("protected/invoice/list", {
+      params: {
+        page,
+        limit,
+        type,
+        filterText,
+      },
+    });
     
     return res.data.data;
 

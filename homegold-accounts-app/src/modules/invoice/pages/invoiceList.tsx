@@ -50,6 +50,10 @@ export default function InvoiceList() {
   const invoices = useSelector(selectAllInvoicePagination);
   const status = useSelector(selectInvoiceStatus);
   const categories = useSelector(selectAllCategory);
+  const hasVatInvoiceNoColumn = !categories.find((c) =>
+    ["currency", "gold"].includes(c.name.toLowerCase())
+  );
+  const tableColumnCount = hasVatInvoiceNoColumn ? 19 : 18;
 
   const totalPages = useSelector(selectTotalPages);
   const [filterText, setFilterText] = useState('');
@@ -74,6 +78,11 @@ export default function InvoiceList() {
   };
 
   const handleListRefresh = () => {
+    setCurrentPage(1);
+  };
+
+  const handleFilterTextChange = (value: string) => {
+    setFilterText(value);
     setCurrentPage(1);
   };
 
@@ -241,7 +250,11 @@ export default function InvoiceList() {
 
       <div className="space-y-6">
         <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <SearchControl value={filterText} onChange={setFilterText} />
+          <SearchControl
+            value={filterText}
+            placeHolder="Search by date, invoice no, category, type, party, item"
+            onChange={handleFilterTextChange}
+          />
 
           <div className="px-4">
             <Table>
@@ -250,7 +263,7 @@ export default function InvoiceList() {
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Sl</TableCell>
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Date</TableCell>
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Invoice No</TableCell>
-                  {!categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase()) ) && (
+                  {hasVatInvoiceNoColumn && (
                     <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Vat Invoice No</TableCell>
                   )}
                   
@@ -259,8 +272,6 @@ export default function InvoiceList() {
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Party Name</TableCell>
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Items</TableCell>
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Qty</TableCell>
-                  <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Stock (Paid)</TableCell>
-                  <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Stock (Due)</TableCell>
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Unit</TableCell>
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Price</TableCell>
                   <TableCell isHeader className="border border-gray-500 text-center px-1 py-1">Sub Total</TableCell>
@@ -277,13 +288,13 @@ export default function InvoiceList() {
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                 {status === 'loading' ? (
                   <TableRow>
-                    <TableCell colSpan={20 - (categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase())) ? 2: 0)} className="text-center py-4 text-gray-500 dark:text-gray-300">
+                    <TableCell colSpan={tableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
                       Loading data...
                     </TableCell>
                   </TableRow>
                 ) : invoices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={20 - (categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase())) ? 2: 0)} className="text-center py-4 text-gray-500 dark:text-gray-300">
+                    <TableCell colSpan={tableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
                       No data found.
                     </TableCell>
                   </TableRow>
@@ -293,7 +304,7 @@ export default function InvoiceList() {
                       <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">{index + 1 + (currentPage - 1) * itemsPerPage}</TableCell>
                       <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">{invoice.date}</TableCell>
                       <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">{invoice.invoiceNo}</TableCell>
-                      {!categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase()) ) && (
+                      {hasVatInvoiceNoColumn && (
                         <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">{invoice.vatInvoiceRefNo}</TableCell>
                       )}
                       
@@ -308,20 +319,6 @@ export default function InvoiceList() {
                       <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">
                         {invoice.items.map((item, idx) => (
                           <div key={idx}>{item.quantity}</div>
-                        ))}
-                      </TableCell>
-                      <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">
-                        {invoice.items.map((item, idx) => (
-                          <div className="text-green-700" key={idx}>{["sale", "wholesale_sale", ...UNFIX_SALE_TRANSTER_TYPES].includes(invoice.invoiceType ?? "") ? Number(item.stockOut) : Number(item.stockIn)}</div>
-                        ))}
-                      </TableCell>
-                      <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">
-                        {invoice.items.map((item, idx) => (
-                          <div className="text-red-500" key={idx}>{
-                            ["sale", "wholesale_sale", ...UNFIX_SALE_TRANSTER_TYPES].includes(invoice.invoiceType ?? "") ?
-                            Number(item.quantity) - Number(item.stockOut) > 0 ? Number(item.quantity) - Number(item.stockOut) : "-" :
-                            Number(item.quantity) - Number(item.stockIn) > 0 ? Number(item.quantity) - Number(item.stockIn) : "-"
-                          }</div>
                         ))}
                       </TableCell>
                       <TableCell className="border border-gray-500 text-center px-1 py-1 text-sm text-gray-500 dark:text-gray-400">

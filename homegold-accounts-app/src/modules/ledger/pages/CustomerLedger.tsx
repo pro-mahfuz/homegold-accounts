@@ -26,6 +26,41 @@ type GroupedBalanceEntry = {
   amount: number;
 };
 
+const compareLedgerAscending = (
+  a: {
+    id?: number;
+    date: string;
+    invoiceId?: number;
+    paymentId?: number;
+    stockId?: number;
+    createdAt?: string;
+  },
+  b: {
+    id?: number;
+    date: string;
+    invoiceId?: number;
+    paymentId?: number;
+    stockId?: number;
+    createdAt?: string;
+  }
+) => {
+  const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+  if (dateDiff !== 0) return dateDiff;
+
+  const stableReferenceA =
+    Number(a.invoiceId) || Number(a.paymentId) || Number(a.stockId) || Number(a.id) || 0;
+  const stableReferenceB =
+    Number(b.invoiceId) || Number(b.paymentId) || Number(b.stockId) || Number(b.id) || 0;
+  const referenceDiff = stableReferenceA - stableReferenceB;
+  if (referenceDiff !== 0) return referenceDiff;
+
+  const createdAtDiff =
+    new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+  if (createdAtDiff !== 0) return createdAtDiff;
+
+  return (a.id || 0) - (b.id || 0);
+};
+
 export default function CustomerLedger() {
   const { partyId } = useParams();
   const navigate = useNavigate();
@@ -101,11 +136,7 @@ export default function CustomerLedger() {
     const paymentBalanceMap: Record<string, number> = {};
     const stockBalanceMap: Record<string, number> = {};
 
-    const sortedLedgers = [...ledgers].sort((a, b) => {
-      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
-      if (dateDiff !== 0) return dateDiff;
-      return (a.id || 0) - (b.id || 0);
-    });
+    const sortedLedgers = [...ledgers].sort(compareLedgerAscending);
 
     const withCumulative = sortedLedgers.map((ledger) => {
       const hasPaymentEntry =

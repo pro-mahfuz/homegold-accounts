@@ -97,25 +97,63 @@ export const getAllPaymentWithPagination = async (
 ) => {
   page = Number(page) || 1;
   limit = Number(limit) || 10;
-  const offset = (page - 1) * limit;
+  const normalizedFilterText = String(filterText || "").trim();
 
   // Always filter by system
   const whereClause = { system };
 
   // Build search filters if filterText exists
-  if (filterText) {
+  if (normalizedFilterText) {
+    const normalizedPaymentTypeSearch = normalizedFilterText
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
     const orConditions = [
-      { prefix: { [Op.like]: `%${filterText}%` } },              // Payment prefix
-      { id: { [Op.eq]: Number(filterText) || 0 } },              // Payment ID
-      { "$invoice.id$": { [Op.eq]: Number(filterText) || 0 } },  // Invoice ID
-      { "$invoice.prefix$": { [Op.like]: `%${filterText}%` } },  // Invoice prefix
-      { "$party.name$": { [Op.like]: `%${filterText}%` } },      // Party name
-      { partyId: { [Op.eq]: Number(filterText) || 0 } },         // Party ID
+      { paymentDate: { [Op.like]: `%${normalizedFilterText}%` } },
+      { prefix: { [Op.like]: `%${normalizedFilterText}%` } },
+      { paymentType: { [Op.like]: `%${normalizedFilterText}%` } },
+      { paymentType: { [Op.like]: `%${normalizedPaymentTypeSearch}%` } },
+      { currency: { [Op.like]: `%${normalizedFilterText}%` } },
+      { "$party.name$": { [Op.like]: `%${normalizedFilterText}%` } },
+      { "$invoice.prefix$": { [Op.like]: `%${normalizedFilterText}%` } },
     ];
 
-    // Check if filterText is a date (YYYY-MM-DD)
-    if (/^\d{4}-\d{2}-\d{2}$/.test(filterText)) {
-      orConditions.push({ date: { [Op.eq]: filterText } });
+    const numericFilterValue = Number(normalizedFilterText);
+    if (!Number.isNaN(numericFilterValue) && numericFilterValue > 0) {
+      orConditions.push(
+        { id: { [Op.eq]: numericFilterValue } },
+        { "$invoice.id$": { [Op.eq]: numericFilterValue } },
+        { "$invoice.vatInvoiceNo$": { [Op.eq]: numericFilterValue } },
+        { partyId: { [Op.eq]: numericFilterValue } }
+      );
+    }
+
+    const paymentReferenceMatch = normalizedFilterText.match(/^([A-Za-z]+)[-\s]?0*([0-9]+)$/);
+    if (paymentReferenceMatch) {
+      const [, prefixPart, referenceNumberPart] = paymentReferenceMatch;
+      const referenceNumber = Number(referenceNumberPart) || 0;
+
+      if (referenceNumber > 0) {
+        orConditions.push(
+          {
+            [Op.and]: [
+              { prefix: { [Op.like]: `${prefixPart}%` } },
+              { id: { [Op.eq]: referenceNumber } },
+            ],
+          },
+          {
+            [Op.and]: [
+              { "$invoice.prefix$": { [Op.like]: `${prefixPart}%` } },
+              { "$invoice.id$": { [Op.eq]: referenceNumber } },
+            ],
+          },
+          {
+            [Op.and]: [
+              { "$invoice.prefix$": { [Op.like]: `${prefixPart}%` } },
+              { "$invoice.vatInvoiceNo$": { [Op.eq]: referenceNumber } },
+            ],
+          }
+        );
+      }
     }
 
     whereClause[Op.or] = orConditions;
@@ -123,13 +161,13 @@ export const getAllPaymentWithPagination = async (
 
   // Shared includes (for both count + findAll)
   const include = [
-    { model: Party, as: "party", required: !!filterText },
+    { model: Party, as: "party", required: false },
     { model: Category, as: "category" },
     {
       model: Invoice,
       as: "invoice",
       attributes: ["id", "prefix", "vatInvoiceNo", "isVat"],
-      required: !!filterText,
+      required: false,
     },
     { model: User, as: "createdByUser" },
     { model: User, as: "updatedByUser" },
@@ -145,6 +183,7 @@ export const getAllPaymentWithPagination = async (
 
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   if (page > totalPages) page = totalPages;
+  const offset = (page - 1) * limit;
 
   // Fetch paginated data
   const data = await Payment.findAll({

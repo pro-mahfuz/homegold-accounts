@@ -94,6 +94,11 @@ export default function PaymentList() {
     setCurrentPage(1);
   };
 
+  const handleFilterTextChange = (value: string) => {
+    setFilterText(value);
+    setCurrentPage(1);
+  };
+
   return (
     <>
       <PageMeta
@@ -132,7 +137,11 @@ export default function PaymentList() {
       <div className="space-y-6">
         <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           
-          <SearchControl value={filterText} onChange={setFilterText} />
+          <SearchControl
+            value={filterText}
+            placeHolder="Search by date, ref no, type, invoice ref, party, currency"
+            onChange={handleFilterTextChange}
+          />
 
           <div className="px-4">
             <Table>

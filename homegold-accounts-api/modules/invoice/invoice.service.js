@@ -997,9 +997,9 @@ export const getAllInvoiceWithPagination = async (
   let rows;
   let count = 0;
   let totalPages = 1;
-
   page = Number(page) || 1;
   limit = Number(limit) || 10;
+  const normalizedFilterText = String(filterText || "").trim();
 
   let whereClause = {};
   const include = [
@@ -1027,8 +1027,7 @@ export const getAllInvoiceWithPagination = async (
     whereClause.invoiceType = { [Op.in]: typeList };
   }
 
-  // CASE 1: No filterText → regular pagination
-  if (!filterText || filterText.trim() === "") {
+  if (!normalizedFilterText) {
     count = await Invoice.count({ where: whereClause });
     totalPages = Math.max(Math.ceil(count / limit), 1);
     if (page > totalPages) page = totalPages;
@@ -1044,36 +1043,102 @@ export const getAllInvoiceWithPagination = async (
       limit,
       offset,
     });
-  }
-
-  // CASE 2: filterText provided → search mode
-  else {
+  } else {
+    const normalizedTypeSearch = normalizedFilterText
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
     const orConditions = [
-      { invoiceType: { [Op.like]: `%${filterText}%` } },
-      { prefix: { [Op.like]: `%${filterText}%` } },
-      { id: { [Op.eq]: Number(filterText) || 0 } },
-      { vatInvoiceNo: { [Op.eq]: Number(filterText) || 0 } },
+      { date: { [Op.like]: `%${normalizedFilterText}%` } },
+      { prefix: { [Op.like]: `%${normalizedFilterText}%` } },
+      { invoiceType: { [Op.like]: `%${normalizedFilterText}%` } },
+      { invoiceType: { [Op.like]: `%${normalizedTypeSearch}%` } },
+      { "$category.name$": { [Op.like]: `%${normalizedFilterText}%` } },
+      { "$party.name$": { [Op.like]: `%${normalizedFilterText}%` } },
+      { "$items.name$": { [Op.like]: `%${normalizedFilterText}%` } },
     ];
 
-    if (/^\d{4}-\d{2}-\d{2}$/.test(filterText)) {
-      orConditions.push({ date: { [Op.eq]: filterText } });
+    const numericFilterValue = Number(normalizedFilterText);
+    if (!Number.isNaN(numericFilterValue) && numericFilterValue > 0) {
+      orConditions.push(
+        { id: { [Op.eq]: numericFilterValue } },
+        { vatInvoiceNo: { [Op.eq]: numericFilterValue } }
+      );
     }
 
-    whereClause[Op.or] = orConditions;
+    const invoiceNumberMatch = normalizedFilterText.match(/^([A-Za-z]+)[-\s]?0*([0-9]+)$/);
+    if (invoiceNumberMatch) {
+      const [, prefixPart, invoiceNumberPart] = invoiceNumberMatch;
+      const invoiceNumber = Number(invoiceNumberPart) || 0;
 
-    rows = await Invoice.findAll({
+      if (invoiceNumber > 0) {
+        orConditions.push(
+          {
+            [Op.and]: [
+              { prefix: { [Op.like]: `${prefixPart}%` } },
+              { id: { [Op.eq]: invoiceNumber } },
+            ],
+          },
+          {
+            [Op.and]: [
+              { prefix: { [Op.like]: `${prefixPart}%` } },
+              { vatInvoiceNo: { [Op.eq]: invoiceNumber } },
+            ],
+          }
+        );
+      }
+    }
+
+    whereClause = {
+      ...whereClause,
+      [Op.or]: orConditions,
+    };
+    const searchableInclude = [
+      { model: InvoiceItem, as: "items", attributes: [], required: false },
+      { model: Category, as: "category", attributes: [], required: false },
+      { model: Party, as: "party", attributes: [], required: false },
+    ];
+
+    const matchedInvoiceRows = await Invoice.findAll({
+      attributes: ["id"],
       where: whereClause,
-      include,
+      include: searchableInclude,
       order: [
         ["date", "DESC"],
         ["id", "DESC"],
       ],
-      limit: 10, // optional small limit for search
+      raw: true,
+      subQuery: false,
     });
 
-    count = rows.length;
-    totalPages = 1;
-    page = 1;
+    const matchedInvoiceIds = [];
+    const seenInvoiceIds = new Set();
+
+    for (const matchedInvoiceRow of matchedInvoiceRows) {
+      const invoiceId = Number(matchedInvoiceRow.id) || 0;
+
+      if (invoiceId > 0 && !seenInvoiceIds.has(invoiceId)) {
+        seenInvoiceIds.add(invoiceId);
+        matchedInvoiceIds.push(invoiceId);
+      }
+    }
+
+    count = matchedInvoiceIds.length;
+    totalPages = Math.max(Math.ceil(count / limit), 1);
+    if (page > totalPages) page = totalPages;
+
+    const offset = (page - 1) * limit;
+    const paginatedInvoiceIds = matchedInvoiceIds.slice(offset, offset + limit);
+
+    rows = paginatedInvoiceIds.length
+      ? await Invoice.findAll({
+          where: { id: { [Op.in]: paginatedInvoiceIds } },
+          include,
+          order: [
+            ["date", "DESC"],
+            ["id", "DESC"],
+          ],
+        })
+      : [];
   }
 
   // Return empty list if nothing found
