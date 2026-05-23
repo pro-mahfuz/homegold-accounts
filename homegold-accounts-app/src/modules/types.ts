@@ -94,7 +94,7 @@ export const formatInvoiceTypeLabel = (invoiceType?: string) => {
   }
 
   if (isUnfixSaleTransterType(invoiceType)) {
-    return "Unfix Sale Transter";
+    return "Unfix Sale Transfer";
   }
 
   return invoiceType

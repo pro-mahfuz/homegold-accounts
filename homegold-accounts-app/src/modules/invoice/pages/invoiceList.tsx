@@ -226,7 +226,7 @@ export default function InvoiceList() {
                 onClick={() => {navigate('/invoice/unfix_sale_transter/create')}}
                 className="bg-cyan-600 text-white px-2 py-1 rounded-full hover:bg-cyan-900 mr-4"
               >
-                Unfix Sale Transter Add
+                Unfix Sale Transfer Add
               </button>
 
               <button

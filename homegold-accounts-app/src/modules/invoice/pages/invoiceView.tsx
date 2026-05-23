@@ -257,7 +257,7 @@ export default function InvoiceView() {
                                         {   invoice?.isVat && invoice?.invoiceType === "sale" ? "TAX INVOICE" : 
                                             invoice?.invoiceType === "fix_sale" ? "FIX SALE VOUCHER" : 
                                             invoice?.invoiceType === "unfix_sale" ? "UNFIX SALE VOUCHER" : 
-                                            isUnfixSaleTransterType(invoice?.invoiceType) ? "UNFIX SALE TRANSTER VOUCHER" : 
+                                            isUnfixSaleTransterType(invoice?.invoiceType) ? "UNFIX SALE TRANSFER VOUCHER" : 
                                             invoice?.invoiceType === "wholesale_sale" ? "WHOLESALE SALE VOUCHER" : 
                                             invoice?.invoiceType === "fix_purchase" ? "FIX PURCHASE VOUCHER" : 
                                             invoice?.invoiceType === "unfix_purchase" ? "UNFIX PURCHASE VOUCHER" : 

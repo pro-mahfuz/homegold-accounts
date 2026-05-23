@@ -45,6 +45,18 @@ import { selectAllItemByBusiness } from "../../item/features/itemSelectors.ts";
 import { fetchAllItem } from "../../item/features/itemThunks.ts";
 
 const MANDATORY_WHOLESALE_PAID_TYPES = ["wholesale_purchase", "wholesale_sale"];
+const GOLD_RATE_HIDDEN_INVOICE_TYPES = [
+    "unfix_sale",
+    "fix_sale",
+    "unfix_purchase",
+    "fix_purchase",
+    ...UNFIX_SALE_TRANSTER_TYPES,
+];
+const VAT_HIDDEN_INVOICE_TYPES = [
+    "unfix_sale",
+    "unfix_purchase",
+    ...UNFIX_SALE_TRANSTER_TYPES,
+];
 
 export default function InvoiceCreateForm() {
     const { invoiceType: routeInvoiceType } = useParams();
@@ -158,6 +170,10 @@ export default function InvoiceCreateForm() {
     const normalizedInvoiceType = formData.invoiceType?.toLowerCase() ?? "";
     const selectedCategoryName = categoryItem?.name?.toLowerCase() ?? "gold";
     const isStockCategory = ["currency", "gold"].includes(selectedCategoryName);
+    const shouldShowVatField = !VAT_HIDDEN_INVOICE_TYPES.includes(normalizedInvoiceType);
+    const shouldShowGoldRateFields =
+        selectedCategoryName === "gold" &&
+        !GOLD_RATE_HIDDEN_INVOICE_TYPES.includes(normalizedInvoiceType);
     const isMandatoryWholesalePaidType = MANDATORY_WHOLESALE_PAID_TYPES.includes(normalizedInvoiceType);
     const supportsInvoicePayment = ["sale", "wholesale_purchase", "wholesale_sale"].includes(normalizedInvoiceType);
     const isSalePaymentType = ["sale", "wholesale_sale"].includes(normalizedInvoiceType);
@@ -300,9 +316,10 @@ export default function InvoiceCreateForm() {
             )?.name.toLowerCase() ?? "gold";
 
             // --- PRICE LOGIC ---
-            const itemPrice = selectedCategory === "gold" && Number(item.purity) > 0
-            ? formData.ounceRateGram                      // use ounceRate for gold
-            : (item.price ?? 0);             // use normal price for others
+            const itemPrice =
+                selectedCategory === "gold" && shouldShowGoldRateFields && Number(item.purity) > 0
+                    ? (formData.ounceRateGram ?? 0)
+                    : (item.price ?? 0);
 
             const subTotal = (itemPrice ?? 0) * (item.quantity ?? 0);
             const vatAmount = isVat === true ? (subTotal * vatRate) / 100 : 0;
@@ -332,7 +349,10 @@ export default function InvoiceCreateForm() {
         const newItem = {
             ...currentItem,
             uniqueId: Date.now(),
-            price: selectedCategory === "gold" && Number(currentItem.purity) > 0 ? formData.ounceRateGram : currentItem.price,
+            price:
+                selectedCategory === "gold" && shouldShowGoldRateFields && Number(currentItem.purity) > 0
+                    ? (formData.ounceRateGram ?? 0)
+                    : currentItem.price,
         };
 
         // Add item (DO NOT recreate it again)
@@ -423,6 +443,28 @@ export default function InvoiceCreateForm() {
 
         console.log("VAT toggled:", { isVat: checked, vatRate });
     };
+
+    useEffect(() => {
+        if (shouldShowVatField || !formData.isVat) {
+            return;
+        }
+
+        const { updatedItems, totalSubTotal, totalVatTotal, totalGrandTotal } = calculateTotals(
+            formData.items,
+            false,
+            formData.discount ?? 0
+        );
+
+        setFormData((prev) => ({
+            ...prev,
+            isVat: false,
+            items: updatedItems,
+            totalAmount: totalSubTotal,
+            grandTotal: totalGrandTotal,
+            vatAmount: totalVatTotal,
+            vatPercentage: 0,
+        }));
+    }, [shouldShowVatField, formData.isVat, formData.items, formData.discount]);
 
     const handleFullPaidChange = (isfullPaid: boolean) => {
         const finalAmount = getFinalInvoiceAmount(formData.grandTotal ?? 0, formData.discount);
@@ -580,21 +622,23 @@ export default function InvoiceCreateForm() {
 
                     {/* isVat */}
                     {/* { !categories.find((c) => ["currency", "gold"].includes(c.name.toLowerCase()) ) && formData.invoiceType !== "clearance_bill" && ( */}
-                    <div className="flex flex-col items-center text-center">
-                        <Label>Select Vat (if have)</Label>
-                        <Checkbox className="justify-center"
-                            id={`is-vat-check`}
-                            label={`Is Vated`}
-                            checked={!!formData.isVat}
-                            onChange={handleVatChange}
-                        />
-                    </div>
+                    {shouldShowVatField && (
+                        <div className="flex flex-col items-center text-center">
+                            <Label>Select Vat (if have)</Label>
+                            <Checkbox className="justify-center"
+                                id={`is-vat-check`}
+                                label={`Is Vated`}
+                                checked={!!formData.isVat}
+                                onChange={handleVatChange}
+                            />
+                        </div>
+                    )}
                     {/* )} */}
 
 
                     
 
-                    { categories.find((c) => c.id === formData.categoryId && c.name.toLowerCase() === "gold" ) && (
+                    {shouldShowGoldRateFields && (
                         <div className="flex">
                             <div>
                                 <Label>Gold Rate (Ounce)</Label>
@@ -780,7 +824,12 @@ export default function InvoiceCreateForm() {
                                         updatedItems[index] = {
                                             ...updatedItems[index],
                                             quantity: value,
-                                            price: Number(updatedItems[index].purity) > 0 && Number(formData.ounceRateGram) > 0 ? formData.ounceRateGram : 0
+                                            price:
+                                                shouldShowGoldRateFields &&
+                                                Number(updatedItems[index].purity) > 0 &&
+                                                Number(formData.ounceRateGram) > 0
+                                                    ? (formData.ounceRateGram ?? 0)
+                                                    : (updatedItems[index].price ?? 0),
                                         };
 
                                         // Recalculate totals

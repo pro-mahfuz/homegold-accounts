@@ -52,6 +52,11 @@ export default function LedgerList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [filterPickerKey, setFilterPickerKey] = useState(0);
+  const hasAllLedgerSearchFilter =
+    selectedPartyId > 0 ||
+    Boolean(selectedTransactionType) ||
+    Boolean(fromDate) ||
+    Boolean(toDate);
 
   const routedParty = useSelector(selectPartyById(partyID));
   const selectedParty = useSelector(selectPartyById(selectedPartyId));
@@ -89,8 +94,8 @@ export default function LedgerList() {
   }, [ledgers]);
 
   // Apply ledger filters
-  const filteredLedgers = useMemo(() => {
-    if (isAllLedger && selectedPartyId <= 0) {
+  const baseFilteredLedgers = useMemo(() => {
+    if (isAllLedger && !hasAllLedgerSearchFilter) {
       return [];
     }
 
@@ -101,6 +106,10 @@ export default function LedgerList() {
 
       if (selectedTransactionType && ledger.transactionType !== selectedTransactionType) {
         return false;
+      }
+
+      if (isAllLedger) {
+        return true;
       }
 
       const ledgerDate = new Date(ledger.date);
@@ -118,7 +127,31 @@ export default function LedgerList() {
 
       return true;
     });
-  }, [ledgers, selectedPartyId, selectedTransactionType, fromDate, toDate, isAllLedger]);
+  }, [ledgers, selectedPartyId, selectedTransactionType, fromDate, toDate, isAllLedger, hasAllLedgerSearchFilter]);
+
+  const filteredLedgers = useMemo(() => {
+    if (!isAllLedger) {
+      return baseFilteredLedgers;
+    }
+
+    return baseFilteredLedgers.filter((ledger) => {
+      const ledgerDate = new Date(ledger.date);
+
+      if (fromDate) {
+        const from = new Date(fromDate);
+        from.setHours(0, 0, 0, 0);
+        if (ledgerDate < from) return false;
+      }
+
+      if (toDate) {
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999);
+        if (ledgerDate > to) return false;
+      }
+
+      return true;
+    });
+  }, [baseFilteredLedgers, fromDate, toDate, isAllLedger]);
 
   const getPaymentBalanceKey = (ledger: {
     currency?: string | null;
@@ -128,11 +161,13 @@ export default function LedgerList() {
   const getStockBalanceKey = (ledger: {
     stockCurrency?: string | null;
     stock?: { unit?: string | null } | null;
+    invoice?: { items?: Array<{ unit?: string | null }> | null } | null;
   }) => {
     const itemName = ledger.stockCurrency || "UNKNOWN";
-    const normalizedUnit = String(ledger.stock?.unit || "").trim().toLowerCase();
+    const resolvedUnit = ledger.stock?.unit || ledger.invoice?.items?.[0]?.unit || "";
+    const normalizedUnit = String(resolvedUnit).trim().toLowerCase();
     const isGoldGramLabel = itemName.toLowerCase().includes("gold") && ["gram", "gm", "g"].includes(normalizedUnit);
-    const unitLabel = ledger.stock?.unit && !isGoldGramLabel ? ` (${ledger.stock.unit})` : "";
+    const unitLabel = resolvedUnit && !isGoldGramLabel ? ` (${resolvedUnit})` : "";
     return `${itemName}${unitLabel}`;
   };
 
@@ -152,6 +187,16 @@ export default function LedgerList() {
     return credit - debit;
   };
 
+  const getAllLedgerPaymentBalanceDelta = (ledger: {
+    debit?: number | null;
+    credit?: number | null;
+  }) => {
+    const debit = Number(ledger.debit) || 0;
+    const credit = Number(ledger.credit) || 0;
+
+    return debit - credit;
+  };
+
   const getItemOrCurrencyLabel = (ledger: {
     debit?: number | null;
     credit?: number | null;
@@ -159,8 +204,8 @@ export default function LedgerList() {
     creditQty?: number | null;
     currency?: string | null;
     stockCurrency?: string | null;
-    invoice?: { currency?: string | null } | null;
     stock?: { unit?: string | null } | null;
+    invoice?: { currency?: string | null; items?: Array<{ unit?: string | null }> | null } | null;
   }) => {
     const hasStockEntry = (Number(ledger.debitQty) || 0) !== 0 || (Number(ledger.creditQty) || 0) !== 0;
     const hasPaymentEntry = (Number(ledger.debit) || 0) !== 0 || (Number(ledger.credit) || 0) !== 0;
@@ -207,25 +252,257 @@ export default function LedgerList() {
   const formatBalanceValue = (value: number | null | undefined) =>
     value === null || value === undefined ? "-" : Number(value).toFixed(2);
 
+  const PAYMENT_BALANCE_VISIBILITY_EPSILON = 0.01;
+  const STOCK_BALANCE_VISIBILITY_EPSILON = 0.000001;
+
+  type AllLedgerAmountTotals = {
+    debit: number;
+    credit: number;
+    balance: number;
+  };
+
+  type AllLedgerSummaryEntry = [string, AllLedgerAmountTotals];
+
   type GroupedBalanceEntry = {
     label: string;
     amount: number;
   };
 
-  const buildGroupedBalances = (balances: Record<string, number>): GroupedBalanceEntry[] =>
+  const buildGroupedBalances = (
+    balances: Record<string, number>,
+    minimumVisibleAmount: number = PAYMENT_BALANCE_VISIBILITY_EPSILON
+  ): GroupedBalanceEntry[] =>
     Object.entries(balances)
       .map(([label, amount]) => ({
         label,
         amount: Number(amount) || 0,
       }))
-      .filter(({ amount }) => Math.abs(amount) >= 0.01)
+      .filter(({ amount }) => Math.abs(amount) >= minimumVisibleAmount)
       .sort((a, b) => a.label.localeCompare(b.label));
+
+  const buildPaymentGroupedBalances = (balances: Record<string, number>) =>
+    buildGroupedBalances(balances, PAYMENT_BALANCE_VISIBILITY_EPSILON);
+
+  const buildStockGroupedBalances = (balances: Record<string, number>) =>
+    buildGroupedBalances(balances, STOCK_BALANCE_VISIBILITY_EPSILON);
+
+  const buildAllLedgerPaymentSummaryEntries = (
+    ledgerEntries: Array<{
+      debit?: number | null;
+      credit?: number | null;
+      currency?: string | null;
+      invoice?: { currency?: string | null } | null;
+    }>
+  ): AllLedgerSummaryEntry[] => {
+    const totals = ledgerEntries.reduce<Record<string, AllLedgerAmountTotals>>((acc, ledger) => {
+      const currency = getPaymentBalanceKey(ledger);
+      const debit = Number(ledger.debit) || 0;
+      const credit = Number(ledger.credit) || 0;
+
+      if (debit === 0 && credit === 0) {
+        return acc;
+      }
+
+      if (!acc[currency]) {
+        acc[currency] = { debit: 0, credit: 0, balance: 0 };
+      }
+
+      acc[currency].debit += debit;
+      acc[currency].credit += credit;
+      acc[currency].balance += getAllLedgerPaymentBalanceDelta(ledger);
+
+      return acc;
+    }, {});
+
+    return Object.entries(totals).sort(([currencyA], [currencyB]) => currencyA.localeCompare(currencyB));
+  };
+
+  const buildAllLedgerStockSummaryEntries = (
+    ledgerEntries: Array<{
+      debitQty?: number | null;
+      creditQty?: number | null;
+      transactionType?: string | null;
+      stockCurrency?: string | null;
+      stock?: { unit?: string | null } | null;
+      invoice?: { items?: Array<{ unit?: string | null }> | null } | null;
+    }>
+  ): AllLedgerSummaryEntry[] => {
+    const totals = ledgerEntries.reduce<Record<string, AllLedgerAmountTotals>>((acc, ledger) => {
+      const itemLabel = getStockBalanceKey(ledger);
+      const debit = Number(ledger.debitQty) || 0;
+      const credit = Number(ledger.creditQty) || 0;
+
+      if (debit === 0 && credit === 0) {
+        return acc;
+      }
+
+      if (!acc[itemLabel]) {
+        acc[itemLabel] = { debit: 0, credit: 0, balance: 0 };
+      }
+
+      acc[itemLabel].debit += debit;
+      acc[itemLabel].credit += credit;
+      acc[itemLabel].balance += getAllLedgerStockBalanceDelta(ledger);
+
+      return acc;
+    }, {});
+
+    Object.values(totals).forEach((entry) => {
+      if (Math.abs(entry.debit - entry.credit) < STOCK_BALANCE_VISIBILITY_EPSILON) {
+        entry.balance = 0;
+      }
+    });
+
+    return Object.entries(totals).sort(([itemA], [itemB]) => itemA.localeCompare(itemB));
+  };
+
+  const renderGroupedBalanceLines = (entries: GroupedBalanceEntry[]) => {
+    if (entries.length === 0) {
+      return "-";
+    }
+
+    return (
+      <div className="space-y-1 text-xs leading-4">
+        {entries.map((entry) => (
+          <div
+            key={entry.label}
+            className={entry.amount < 0 ? "text-red-500" : entry.amount > 0 ? "text-green-700" : ""}
+          >
+            {`${entry.label} : ${formatBalanceValue(entry.amount)}`}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderAllLedgerSummaryLines = (
+    entries: AllLedgerSummaryEntry[],
+    valueKey: keyof AllLedgerAmountTotals,
+    epsilon: number
+  ) => {
+    const visibleEntries = entries.filter(([, totals]) => Math.abs(Number(totals[valueKey]) || 0) >= epsilon);
+
+    if (visibleEntries.length === 0) {
+      return "-";
+    }
+
+    return (
+      <div className="space-y-1 text-xs leading-4">
+        {visibleEntries.map(([label, totals]) => {
+          const value = Number(totals[valueKey]) || 0;
+
+          return (
+            <div
+              key={`${label}-${valueKey}`}
+              className={value < 0 ? "text-red-500" : value > 0 ? "text-green-700" : ""}
+            >
+              {`${label} : ${formatBalanceValue(value)}`}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const allLedgerOpeningLedgers = useMemo(() => {
+    if (!isAllLedger || !fromDate) {
+      return [];
+    }
+
+    const from = new Date(fromDate);
+    from.setHours(0, 0, 0, 0);
+
+    return baseFilteredLedgers.filter((ledger) => {
+      const ledgerDate = new Date(ledger.date);
+      return ledgerDate < from;
+    });
+  }, [baseFilteredLedgers, fromDate, isAllLedger]);
+
+  const allLedgerOpeningBalances = useMemo(() => {
+    if (!isAllLedger || !fromDate) {
+      return {
+        paymentBalanceMap: {} as Record<string, number>,
+        stockBalanceMap: {} as Record<string, number>,
+        paymentBalances: [] as GroupedBalanceEntry[],
+        stockBalances: [] as GroupedBalanceEntry[],
+        paymentSummary: [] as AllLedgerSummaryEntry[],
+        stockSummary: [] as AllLedgerSummaryEntry[],
+      };
+    }
+
+    const paymentBalanceMap: Record<string, number> = {};
+    const stockBalanceMap: Record<string, number> = {};
+
+    allLedgerOpeningLedgers.forEach((ledger) => {
+      const debit = Number(ledger.debit) || 0;
+      const credit = Number(ledger.credit) || 0;
+      const debitQty = Number(ledger.debitQty) || 0;
+      const creditQty = Number(ledger.creditQty) || 0;
+
+      if (debit !== 0 || credit !== 0) {
+        const paymentKey = getPaymentBalanceKey(ledger);
+        paymentBalanceMap[paymentKey] =
+          (paymentBalanceMap[paymentKey] || 0) + getAllLedgerPaymentBalanceDelta(ledger);
+      }
+
+      if (debitQty !== 0 || creditQty !== 0) {
+        const stockKey = getStockBalanceKey(ledger);
+        stockBalanceMap[stockKey] =
+          (stockBalanceMap[stockKey] || 0) + getAllLedgerStockBalanceDelta(ledger);
+      }
+    });
+
+    return {
+      paymentBalanceMap,
+      stockBalanceMap,
+      paymentBalances: buildPaymentGroupedBalances(paymentBalanceMap),
+      stockBalances: buildStockGroupedBalances(stockBalanceMap),
+      paymentSummary: buildAllLedgerPaymentSummaryEntries(allLedgerOpeningLedgers),
+      stockSummary: buildAllLedgerStockSummaryEntries(allLedgerOpeningLedgers),
+    };
+  }, [allLedgerOpeningLedgers, fromDate, isAllLedger]);
+
+  const allLedgerClosingLedgers = useMemo(() => {
+    if (!isAllLedger || baseFilteredLedgers.length === 0) {
+      return [];
+    }
+
+    if (!toDate) {
+      return baseFilteredLedgers;
+    }
+
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+
+    return baseFilteredLedgers.filter((ledger) => {
+      const ledgerDate = new Date(ledger.date);
+      return ledgerDate <= to;
+    });
+  }, [baseFilteredLedgers, isAllLedger, toDate]);
+
+  const allLedgerClosingSummary = useMemo(() => {
+    if (!isAllLedger || allLedgerClosingLedgers.length === 0) {
+      return {
+        paymentSummary: [] as AllLedgerSummaryEntry[],
+        stockSummary: [] as AllLedgerSummaryEntry[],
+      };
+    }
+
+    return {
+      paymentSummary: buildAllLedgerPaymentSummaryEntries(allLedgerClosingLedgers),
+      stockSummary: buildAllLedgerStockSummaryEntries(allLedgerClosingLedgers),
+    };
+  }, [allLedgerClosingLedgers, isAllLedger]);
 
 
   // Compute cumulative balance for all ledgers
   const ledgersWithBalance = useMemo(() => {
-    const paymentBalancesByCurrency: Record<string, number> = {};
-    const stockBalancesByItem: Record<string, number> = {};
+    const paymentBalancesByCurrency: Record<string, number> = isAllLedger
+      ? { ...allLedgerOpeningBalances.paymentBalanceMap }
+      : {};
+    const stockBalancesByItem: Record<string, number> = isAllLedger
+      ? { ...allLedgerOpeningBalances.stockBalanceMap }
+      : {};
     let cumulative = 0;
 
     return filteredLedgers.map((ledger) => {
@@ -242,7 +519,10 @@ export default function LedgerList() {
       if (hasPaymentEntry) {
         const paymentKey = getPaymentBalanceKey(ledger);
         paymentBalancesByCurrency[paymentKey] =
-          (paymentBalancesByCurrency[paymentKey] || 0) + getLedgerPaymentBalanceDelta(ledger);
+          (paymentBalancesByCurrency[paymentKey] || 0) +
+          (isAllLedger
+            ? getAllLedgerPaymentBalanceDelta(ledger)
+            : getLedgerPaymentBalanceDelta(ledger));
         cumulativePaymentBalance = paymentBalancesByCurrency[paymentKey];
       }
 
@@ -257,8 +537,8 @@ export default function LedgerList() {
 
       cumulative += Number(ledger.runningBalance ?? 0);
 
-      const cumulativePaymentBalances = buildGroupedBalances(paymentBalancesByCurrency);
-      const cumulativeStockBalances = buildGroupedBalances(stockBalancesByItem);
+      const cumulativePaymentBalances = buildPaymentGroupedBalances(paymentBalancesByCurrency);
+      const cumulativeStockBalances = buildStockGroupedBalances(stockBalancesByItem);
 
       return {
         ...ledger,
@@ -269,9 +549,74 @@ export default function LedgerList() {
         cumulativeBalance: cumulative,
       };
     });
-  }, [filteredLedgers]);
+  }, [allLedgerOpeningBalances.paymentBalanceMap, allLedgerOpeningBalances.stockBalanceMap, filteredLedgers, isAllLedger]);
 
-  const shouldDisablePagination = isAllLedger && selectedPartyId > 0;
+  const renderAllLedgerOpeningSummaryRow = () => {
+    if (!isAllLedger || !fromDate) {
+      return null;
+    }
+
+    return (
+      <TableRow className="border-b border-gray-100 bg-amber-50 dark:border-white/[0.05]">
+        <TableCell colSpan={7} className="text-center px-2 py-2 font-semibold text-gray-700 dark:text-gray-300">
+          Opening Summary
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerOpeningBalances.paymentSummary, "debit", PAYMENT_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerOpeningBalances.paymentSummary, "credit", PAYMENT_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerOpeningBalances.stockSummary, "debit", STOCK_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerOpeningBalances.stockSummary, "credit", STOCK_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerOpeningBalances.paymentSummary, "balance", PAYMENT_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerOpeningBalances.stockSummary, "balance", STOCK_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  const renderAllLedgerClosingSummaryRow = () => {
+    if (!isAllLedger || allLedgerClosingLedgers.length === 0) {
+      return null;
+    }
+
+    return (
+      <TableRow className="border-t border-gray-200 bg-blue-50 dark:border-white/[0.05]">
+        <TableCell colSpan={7} className="text-center px-2 py-2 font-semibold text-gray-700 dark:text-gray-300">
+          Closing Summary
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerClosingSummary.paymentSummary, "debit", PAYMENT_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerClosingSummary.paymentSummary, "credit", PAYMENT_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerClosingSummary.stockSummary, "debit", STOCK_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerClosingSummary.stockSummary, "credit", STOCK_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerClosingSummary.paymentSummary, "balance", PAYMENT_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+        <TableCell className="border border-gray-300 text-center px-2 py-2">
+          {renderAllLedgerSummaryLines(allLedgerClosingSummary.stockSummary, "balance", STOCK_BALANCE_VISIBILITY_EPSILON)}
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  const shouldDisablePagination =
+    isAllLedger && hasAllLedgerSearchFilter;
 
   // Pagination
   const totalPages = shouldDisablePagination
@@ -309,12 +654,6 @@ export default function LedgerList() {
     closeBalance: number;
     purchageMargin: number;
     saleMargin: number;
-  };
-
-  type AllLedgerAmountTotals = {
-    debit: number;
-    credit: number;
-    balance: number;
   };
 
   const ledgerTotalsByCurrency = useMemo(() => {
@@ -393,58 +732,13 @@ export default function LedgerList() {
 
   const allLedgerPaymentSummary = useMemo(() => {
     if (!isAllLedger) return [] as Array<[string, AllLedgerAmountTotals]>;
-
-    const totals = ledgersWithBalance.reduce<Record<string, AllLedgerAmountTotals>>((acc, ledger) => {
-      const currency = getPaymentBalanceKey(ledger);
-      const debit = Number(ledger.debit) || 0;
-      const credit = Number(ledger.credit) || 0;
-
-      if (debit === 0 && credit === 0) return acc;
-
-      if (!acc[currency]) {
-        acc[currency] = { debit: 0, credit: 0, balance: 0 };
-      }
-
-      acc[currency].debit += debit;
-      acc[currency].credit += credit;
-      acc[currency].balance += getLedgerPaymentBalanceDelta(ledger);
-
-      return acc;
-    }, {});
-
-    return Object.entries(totals).sort(([currencyA], [currencyB]) => currencyA.localeCompare(currencyB));
-  }, [isAllLedger, ledgersWithBalance]);
+    return allLedgerClosingSummary.paymentSummary;
+  }, [allLedgerClosingSummary.paymentSummary, isAllLedger]);
 
   const allLedgerStockSummary = useMemo(() => {
     if (!isAllLedger) return [] as Array<[string, AllLedgerAmountTotals]>;
-
-    const totals = filteredLedgers.reduce<Record<string, AllLedgerAmountTotals>>((acc, ledger) => {
-      const itemLabel = getStockBalanceKey(ledger);
-      const debit = Number(ledger.debitQty) || 0;
-      const credit = Number(ledger.creditQty) || 0;
-      const balanceDelta = getAllLedgerStockBalanceDelta(ledger);
-
-      if (debit === 0 && credit === 0) return acc;
-
-      if (!acc[itemLabel]) {
-        acc[itemLabel] = { debit: 0, credit: 0, balance: 0 };
-      }
-
-      acc[itemLabel].debit += debit;
-      acc[itemLabel].credit += credit;
-      acc[itemLabel].balance += balanceDelta;
-
-      return acc;
-    }, {});
-
-    Object.values(totals).forEach((entry) => {
-      if (Math.abs(entry.debit - entry.credit) < 0.01) {
-        entry.balance = 0;
-      }
-    });
-
-    return Object.entries(totals).sort(([itemA], [itemB]) => itemA.localeCompare(itemB));
-  }, [filteredLedgers, isAllLedger]);
+    return allLedgerClosingSummary.stockSummary;
+  }, [allLedgerClosingSummary.stockSummary, isAllLedger]);
 
   const ledgerTableColumnCount = isAllLedger
     ? 13
@@ -577,25 +871,6 @@ export default function LedgerList() {
       const stockBalances: GroupedBalanceEntry[] = Array.isArray(ledger.cumulativeStockBalances)
         ? ledger.cumulativeStockBalances
         : [];
-
-      const renderGroupedBalanceLines = (entries: GroupedBalanceEntry[]) => {
-        if (entries.length === 0) {
-          return "-";
-        }
-
-        return (
-          <div className="space-y-1 text-xs leading-4">
-            {entries.map((entry) => (
-              <div
-                key={entry.label}
-                className={entry.amount < 0 ? "text-red-500" : entry.amount > 0 ? "text-green-700" : ""}
-              >
-                {`${entry.label} : ${formatBalanceValue(entry.amount)}`}
-              </div>
-            ))}
-          </div>
-        );
-      };
 
       return (
         <>
@@ -802,7 +1077,7 @@ export default function LedgerList() {
             <>
               <TableRow>
                 <TableCell colSpan={ledgerTableColumnCount} className="text-center px-2 py-2 font-semibold">
-                  Payment Summary
+                  Closing Payment Summary
                 </TableCell>
               </TableRow>
 
@@ -830,7 +1105,7 @@ export default function LedgerList() {
             <>
               <TableRow>
                 <TableCell colSpan={ledgerTableColumnCount} className="text-center px-2 py-2 font-semibold">
-                  Stock Summary
+                  Closing Stock Summary
                 </TableCell>
               </TableRow>
 
@@ -1117,78 +1392,84 @@ export default function LedgerList() {
                             Loading data...
                           </TableCell>
                         </TableRow>
-                      ) : displayedLedgers.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={ledgerTableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
-                            No data found.
-                          </TableCell>
-                        </TableRow>
                       ) : (
-                        displayedLedgers.map((ledger, index) => (
-                          <TableRow key={`primary-${ledger.id}`} className="border-b border-gray-100 dark:border-white/[0.05]">
-                            <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                              {index + 1}
-                            </TableCell>
+                        <>
+                          {renderAllLedgerOpeningSummaryRow()}
+                          {displayedLedgers.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={ledgerTableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
+                                No data found.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            displayedLedgers.map((ledger, index) => (
+                              <TableRow key={`primary-${ledger.id}`} className="border-b border-gray-100 dark:border-white/[0.05]">
+                                <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  {index + 1}
+                                </TableCell>
 
-                            <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                              <div>
-                                <div>{ledger.transactionType}</div>
-                                <div className="text-xs">{ledger.date}</div>
-                              </div>
-                            </TableCell>
+                                <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  <div>
+                                    <div>{ledger.transactionType}</div>
+                                    <div className="text-xs">{ledger.date}</div>
+                                  </div>
+                                </TableCell>
 
-                            <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                              {ledger.paymentId === null && ledger.stockId === null ? ledger.invoiceRefNo : ""}
-                              {ledger.paymentRefNo}
-                              {ledger.stockRefNo}
-                              {ledger.paymentId !== null && ledger?.payment?.invoice && (
-                                <>
-                                  <br />
-                                  <span className="text-xs">
-                                    {`${ledger.payment.invoice.prefix ?? ""}-${String(ledger.payment.invoiceId ?? 0).padStart(6, "0")}`}
-                                  </span>
-                                </>
-                              )}
-                              {ledger.stockId !== null && ledger?.stock?.invoice && (
-                                <>
-                                  <br />
-                                  <span className="text-xs">{`${ledger.stock.invoice.prefix ?? ""} - ${String(ledger.stock.invoiceId ?? 0).padStart(6, '0')}`}</span>
-                                </>
-                              )}
-                            </TableCell>
-
-                            <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                              {ledger.party?.name}
-                            </TableCell>
-                            
-                            <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                              <div>
-                                {(ledger.transactionType === "purchase" || ledger.transactionType === "sale" || ledger.transactionType === "clearance_bill") && ledger.description ? (
-                                  ledger.description.split('<br />').map((line, idx) => (
-                                    <Fragment key={`${line}-${idx}`}>
-                                      {line}
+                                <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  {ledger.paymentId === null && ledger.stockId === null ? ledger.invoiceRefNo : ""}
+                                  {ledger.paymentRefNo}
+                                  {ledger.stockRefNo}
+                                  {ledger.paymentId !== null && ledger?.payment?.invoice && (
+                                    <>
                                       <br />
-                                    </Fragment>
-                                  ))
-                                ) : ledger.description || ''
-                                }
-                              </div>
-                            </TableCell>
+                                      <span className="text-xs">
+                                        {`${ledger.payment.invoice.prefix ?? ""}-${String(ledger.payment.invoiceId ?? 0).padStart(6, "0")}`}
+                                      </span>
+                                    </>
+                                  )}
+                                  {ledger.stockId !== null && ledger?.stock?.invoice && (
+                                    <>
+                                      <br />
+                                      <span className="text-xs">{`${ledger.stock.invoice.prefix ?? ""} - ${String(ledger.stock.invoiceId ?? 0).padStart(6, '0')}`}</span>
+                                    </>
+                                  )}
+                                </TableCell>
 
-                            <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
-                              {ledger.bank?.accountName ?? "---"}
-                            </TableCell>
+                                <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  {ledger.party?.name}
+                                </TableCell>
+                                
+                                <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  <div>
+                                    {(ledger.transactionType === "purchase" || ledger.transactionType === "sale" || ledger.transactionType === "clearance_bill") && ledger.description ? (
+                                      ledger.description.split('<br />').map((line, idx) => (
+                                        <Fragment key={`${line}-${idx}`}>
+                                          {line}
+                                          <br />
+                                        </Fragment>
+                                      ))
+                                    ) : ledger.description || ''
+                                    }
+                                  </div>
+                                </TableCell>
 
-                            <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
-                              {isAllLedger ? getItemOrCurrencyLabel(ledger) : ledger.currency ?? ledger.stockCurrency ?? "---"}
-                            </TableCell>
+                              <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
+                                {ledger.bank?.accountName ?? "---"}
+                              </TableCell>
 
-                            {renderAmountCells(ledger)}
+                              <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
+                                {isAllLedger ? getItemOrCurrencyLabel(ledger) : ledger.currency ?? ledger.stockCurrency ?? "---"}
+                              </TableCell>
 
-                            {renderBalanceCells(ledger)}
-                            
-                          </TableRow>
-                        ))
+                              {renderAmountCells(ledger)}
+
+                                {renderBalanceCells(ledger)}
+                                
+                              </TableRow>
+                            ))
+                          )}
+                          {renderAllLedgerClosingSummaryRow()}
+                        </>
                       )}
                     </TableBody>
 
@@ -1252,78 +1533,84 @@ export default function LedgerList() {
                           Loading data...
                         </TableCell>
                       </TableRow>
-                    ) : displayedLedgers.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={ledgerTableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
-                          No data found.
-                        </TableCell>
-                      </TableRow>
                     ) : (
-                      displayedLedgers.map((ledger, index) => (
-                        <TableRow key={`primary-${ledger.id}`} className="border-b border-gray-100 dark:border-white/[0.05]">
-                          <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                            {index + 1}
-                          </TableCell>
+                      <>
+                        {renderAllLedgerOpeningSummaryRow()}
+                        {displayedLedgers.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={ledgerTableColumnCount} className="text-center py-4 text-gray-500 dark:text-gray-300">
+                              No data found.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          displayedLedgers.map((ledger, index) => (
+                            <TableRow key={`primary-${ledger.id}`} className="border-b border-gray-100 dark:border-white/[0.05]">
+                              <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                {index + 1}
+                              </TableCell>
 
-                          <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                            <div>
-                              <div>{ledger.transactionType}</div>
-                              <div className="text-xs">{ledger.date}</div>
-                            </div>
-                          </TableCell>
+                              <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                <div>
+                                  <div>{ledger.transactionType}</div>
+                                  <div className="text-xs">{ledger.date}</div>
+                                </div>
+                              </TableCell>
 
-                          <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                            {ledger.paymentId === null && ledger.stockId === null ? ledger.invoiceRefNo : ""}
-                            {ledger.paymentRefNo}
-                            {ledger.stockRefNo}
-                            {ledger.paymentId !== null && ledger?.payment?.invoice && (
-                              <>
-                                <br />
-                                <span className="text-xs">
-                                  {`${ledger.payment.invoice.prefix ?? ""}-${String(ledger.payment.invoiceId ?? 0).padStart(6, "0")}`}
-                                </span>
-                              </>
-                            )}
-                            {ledger.stockId !== null && ledger?.stock?.invoice && (
-                              <>
-                                <br />
-                                <span className="text-xs">{`${ledger.stock.invoice.prefix ?? ""} - ${String(ledger.stock.invoiceId ?? 0).padStart(6, '0')}`}</span>
-                              </>
-                            )}
-                          </TableCell>
-
-                          <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                            {ledger.party?.name}
-                          </TableCell>
-
-                          <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
-                            <div>
-                              {(ledger.transactionType === "purchase" || ledger.transactionType === "sale" || ledger.transactionType === "clearance_bill") && ledger.description ? (
-                                ledger.description.split('<br />').map((line, idx) => (
-                                  <Fragment key={`${line}-${idx}`}>
-                                    {line}
+                              <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                {ledger.paymentId === null && ledger.stockId === null ? ledger.invoiceRefNo : ""}
+                                {ledger.paymentRefNo}
+                                {ledger.stockRefNo}
+                                {ledger.paymentId !== null && ledger?.payment?.invoice && (
+                                  <>
                                     <br />
-                                  </Fragment>
-                                ))
-                              ) : ledger.description || ''
-                              }
-                            </div>
-                          </TableCell>
-                          
-                          <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
-                            {ledger.bank?.accountName ?? "---"}
-                          </TableCell>
+                                    <span className="text-xs">
+                                      {`${ledger.payment.invoice.prefix ?? ""}-${String(ledger.payment.invoiceId ?? 0).padStart(6, "0")}`}
+                                    </span>
+                                  </>
+                                )}
+                                {ledger.stockId !== null && ledger?.stock?.invoice && (
+                                  <>
+                                    <br />
+                                    <span className="text-xs">{`${ledger.stock.invoice.prefix ?? ""} - ${String(ledger.stock.invoiceId ?? 0).padStart(6, '0')}`}</span>
+                                  </>
+                                )}
+                              </TableCell>
 
-                          <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
-                            {isAllLedger ? getItemOrCurrencyLabel(ledger) : ledger.currency ?? ledger.stockCurrency ?? "---"}
-                          </TableCell>
+                              <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                {ledger.party?.name}
+                              </TableCell>
 
-                          {renderAmountCells(ledger)}
+                              <TableCell className="text-center px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                <div>
+                                  {(ledger.transactionType === "purchase" || ledger.transactionType === "sale" || ledger.transactionType === "clearance_bill") && ledger.description ? (
+                                    ledger.description.split('<br />').map((line, idx) => (
+                                      <Fragment key={`${line}-${idx}`}>
+                                        {line}
+                                        <br />
+                                      </Fragment>
+                                    ))
+                                  ) : ledger.description || ''
+                                  }
+                                </div>
+                              </TableCell>
 
-                          {renderBalanceCells(ledger)}
-                          
-                        </TableRow>
-                      ))
+                              <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
+                                {ledger.bank?.accountName ?? "---"}
+                              </TableCell>
+
+                              <TableCell className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
+                                {isAllLedger ? getItemOrCurrencyLabel(ledger) : ledger.currency ?? ledger.stockCurrency ?? "---"}
+                              </TableCell>
+
+                              {renderAmountCells(ledger)}
+
+                                {renderBalanceCells(ledger)}
+                                
+                              </TableRow>
+                          ))
+                        )}
+                        {renderAllLedgerClosingSummaryRow()}
+                      </>
                     )}
                   </TableBody>
 
