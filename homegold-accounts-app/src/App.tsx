@@ -47,17 +47,14 @@ import ProfitLossReport from "./modules/report/pages/profitLossReport";
 import ExpenseCreateForm from "./modules/payment/pages/ExpenseCreateForm";
 import ExpenseList from "./modules/payment/pages/ExpenseList";
 import ExpenseEditForm from "./modules/payment/pages/ExpenseEditForm";
-import ExpenseOfficeReport from "./modules/report/pages/ExpenseOfficeReport";
 import ItemList from "./modules/item/pages/ItemList";
 import UnitList from "./modules/unit/pages/UnitList";
 import StatusList from "./modules/status/pages/StatusList";
-import BalanceStatement from "./modules/report/pages/BalanceStatement";
 import PaymentAcountList from "./modules/account/pages/PaymentAcountList";
 import CustomerBalanceStatement from "./modules/report/pages/CustomerBalanceStatement";
 import SaleCashCollectionReport from "./modules/report/pages/SaleCashCollectionReport";
 import SaleCashReport from "./modules/report/pages/SaleCashReport";
 import DailyProfitLossReport from "./modules/report/pages/dailyProfitLossReport";
-import CapitalReport from "./modules/report/pages/CapitalReport";
 import ReceivableReport from "./modules/report/pages/ReceivableReport";
 import PayableReport from "./modules/report/pages/PayableReport";
 import SaleOutstandingReport from "./modules/report/pages/SaleOutstandingReport";
@@ -65,7 +62,7 @@ import PurchaseReport from "./modules/report/pages/PurchaseReport";
 import PurchaseCashPaymentReport from "./modules/report/pages/PurchaseCashPaymentReport";
 import SaleStatement from "./modules/report/pages/SaleStatement";
 import PaymentView from "./modules/payment/pages/PaymentView";
-import AccountStatement from "./modules/report/pages/AccountStatement";
+import CashBookReport from "./modules/report/pages/CashBookReport";
 import ResetPassword from "./modules/auth/pages/ResetPassword";
 import ForgotPassword from "./modules/auth/pages/ForgotPassword";
 import GoldPriceInList from "./modules/goldPriceIn/pages/GoldPriceInList";
@@ -246,12 +243,6 @@ export default function App() {
             />
 
             {/* Report */}
-            <Route index path="/report/balance/statement" element={
-              <PrivateRoute permissions={['report_balance']}>
-                <BalanceStatement />
-              </PrivateRoute>} 
-            />
-
             <Route index path="/report/:partyType/statement" element={
               <PrivateRoute permissions={['statement_summary_party']}>
                 <CustomerBalanceStatement />
@@ -319,12 +310,6 @@ export default function App() {
               </PrivateRoute>} 
             />
 
-            <Route index path="/report/expense/office" element={
-              <PrivateRoute permissions={['report_expense']}>
-                <ExpenseOfficeReport />
-              </PrivateRoute>} 
-            />
-
             <Route index path="/report/dailyProfitLoss" element={
               <PrivateRoute permissions={['report_sale']}>
                 <DailyProfitLossReport />
@@ -349,15 +334,9 @@ export default function App() {
               </PrivateRoute>} 
             />
 
-            <Route index path="/report/capitalReport" element={
-              <PrivateRoute permissions={['report_capital']}>
-                <CapitalReport />
-              </PrivateRoute>} 
-            />
-
-            <Route index path="/report/account/statement" element={
+            <Route index path="/report/cashbook" element={
               <PrivateRoute permissions={['report_balance']}>
-                <AccountStatement />
+                <CashBookReport />
               </PrivateRoute>} 
             />
 

@@ -13,30 +13,6 @@ export const fetchAll = async () => {
   }
 };
 
-export const getBalanceStatement = async () => {
-  try {
-
-    const res = await axiosInstance.get('protected/report/balance/statement');
-    
-    return res.data.data;
-
-  } catch {
-    throw new Error('No data available');
-  }
-};
-
-export const getAssetStatement = async () => {
-  try {
-
-    const res = await axiosInstance.get('protected/report/asset/statement');
-    
-    return res.data.data;
-
-  } catch {
-    throw new Error('No data available');
-  }
-};
-
 export const create = async (createData: Account, config?: AxiosRequestConfig) => {
   try {
 

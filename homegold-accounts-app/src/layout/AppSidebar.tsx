@@ -137,16 +137,13 @@ const AppSidebar: React.FC<any> = () => {
       permission:"manage_report",
       subItems: [
         { name: "Purchase Report", path: "/report/purchase", permission:"report_purchase" },
-        { name: "Payment Transaction", path: "/report/purchase/cash-payment", permission:"report_purchase_cash_payment" },
         { name: "Sale Report", path: "/report/sale", permission:"report_sale" },
+        { name: "Payment Transaction", path: "/report/purchase/cash-payment", permission:"report_purchase_cash_payment" },
         { name: "Received Transaction", path: "/report/sale/cash-collection", permission:"report_sale_cash_collection" },
         { name: "Stock Report", path: "/report/stock", permission:"report_stock" },
-        { name: "Expense Report", path: "/report/expense/office", permission:"report_expense" },
         { name: "Receivable & Payable", path: "/report/receivable", permission:"report_receivable" },
         // { name: "Payable Report", path: "/report/payable", permission:"report_payable" },
-        { name: "Balance Report", path: "/report/balance/statement", permission:"report_balance" },
-        { name: "Account Statement", path: "/report/account/statement", permission:"report_balance" },
-        { name: "Capital Report", path: "/report/capitalReport", permission:"report_capital" },
+        { name: "Cashbook Report", path: "/report/cashbook", permission:"report_balance" },
       ],
     },
   ];

@@ -1,13 +1,11 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { AccountState } from './accountTypes';
-import { createAccount, fetchAllAccount, fetchBalanceStatement, fetchAccountById, updateAccount, destroyAccount, fetchAssetStatement } from './accountThunks';
+import { createAccount, fetchAllAccount, fetchAccountById, updateAccount, destroyAccount } from './accountThunks';
 
 
 
 const initialState: AccountState = {
   data: [],
-  balanceReport: [],
-  assetReport: [],
   status: 'idle',
   error: null,
 };
@@ -30,34 +28,6 @@ const Slice = createSlice({
       .addCase(fetchAllAccount.rejected, (state, action) => {
           state.status = 'failed';
           state.error = action.error.message || null;
-      })
-
-      // fetchBalanceStatement
-      .addCase(fetchBalanceStatement.pending, (state) => {
-          state.status = 'loading';
-          state.error = null;
-      })
-      .addCase(fetchBalanceStatement.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.balanceReport = action.payload;
-      })
-      .addCase(fetchBalanceStatement.rejected, (state, action) => {
-        state.status = 'failed';
-        state.error = action.error.message || null;
-      })
-
-      // fetchCapitalReport
-      .addCase(fetchAssetStatement.pending, (state) => {
-          state.status = 'loading';
-          state.error = null;
-      })
-      .addCase(fetchAssetStatement.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.assetReport = action.payload;
-      })
-      .addCase(fetchAssetStatement.rejected, (state, action) => {
-        state.status = 'failed';
-        state.error = action.error.message || null;
       })
 
       // createParty

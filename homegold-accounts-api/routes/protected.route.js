@@ -128,7 +128,7 @@ router.post("/item/:id/active", authorize("manage_item"), ItemController.activeI
 router.post("/item/:id/deactive", authorize("manage_item"), ItemController.deactiveItem);
 
 /*---Invoice---*/
-router.get("/invoice/list", authorize(["manage_purchase", "manage_sale", "report_sale", "report_expense"]), InvoiceController.getAllInvoice);
+router.get("/invoice/list", authorize(["manage_purchase", "manage_sale", "report_sale"]), InvoiceController.getAllInvoice);
 router.post("/invoice/create", authorize(["create_purchase", "create_sale"]), validate(invoiceSchema), InvoiceController.createInvoice);
 router.get("/invoice/:id/view", authorize(["view_purchase", "view_sale"]), InvoiceController.getInvoiceById);
 router.put("/invoice/update", authorize(["edit_purchase", "edit_sale"]), validate(invoiceSchema), InvoiceController.updateInvoice);
@@ -187,11 +187,8 @@ router.post("/invoice/getSaleReport", authorize("report_sale"), InvoiceControlle
 router.post("/invoice/getPurchaseReport", authorize("report_purchase"), InvoiceController.getPurchaseReport);
 router.post("/invoice/getSaleCashReport", authorize("report_sale"), InvoiceController.getSaleCashReport);
 router.post("/invoice/getBillReport", authorize("report_purchase"), InvoiceController.getBillReport);
-router.post("/invoice/getSalePaymentReport", authorize(["report_payment", "report_expense"]), InvoiceController.getSalePaymentReport);
+router.post("/invoice/getSalePaymentReport", authorize("report_payment"), InvoiceController.getSalePaymentReport);
 router.post("/invoice/getProfitLossReport", authorize("report_sale"), InvoiceController.getProfitLossReport);
 router.post("/invoice/getDailyProfitLossReport", authorize("report_sale"), InvoiceController.getDailyProfitLossReport);
-router.get("/report/balance/statement", BankController.getBalanceStatement);
-router.get("/report/asset/statement", BankController.getAssetStatement);
-
 
 export default router;

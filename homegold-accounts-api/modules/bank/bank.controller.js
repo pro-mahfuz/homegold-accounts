@@ -11,24 +11,6 @@ export const getAllBank = async (req, res, next) =>{
     }
 }
 
-export const getBalanceStatement = async (req, res, next) => {
-    try {
-        const data = await BankService.getBalanceStatement(req);
-        return success(res, data, "Bank balance statement retrived successfully", 201);
-    } catch (err) {
-        return error(res, err.message, err.status || 500);
-    }
-}
-
-export const getAssetStatement = async (req, res, next) => {
-    try {
-        const data = await BankService.getAssetStatement(req);
-        return success(res, data, "Bank balance statement retrived successfully", 201);
-    } catch (err) {
-        return error(res, err.message, err.status || 500);
-    }
-}
-
 export const createBank = async (req, res, next) => {
     try {
         console.log("Bank create Request: ", req.body);

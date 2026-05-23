@@ -19,38 +19,6 @@ export const fetchAllAccount = createAsyncThunk<Account[], void, { rejectValue: 
   }
 );
 
-export const fetchBalanceStatement = createAsyncThunk<Account[], void, { rejectValue: string }>(
-  'bank/fetchBalanceStatement', async (_, thunkAPI) => {
-    try {
-
-      const data = await bankAPI.getBalanceStatement();
-
-      return data;
-      
-    } catch (err) {
-
-      const error = err as AxiosError<{ message?: string }>;
-      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch');
-    }
-  }
-);
-
-export const fetchAssetStatement = createAsyncThunk<Account[], void, { rejectValue: string }>(
-  'bank/fetchAssetStatement', async (_, thunkAPI) => {
-    try {
-
-      const data = await bankAPI.getAssetStatement();
-
-      return data;
-      
-    } catch (err) {
-
-      const error = err as AxiosError<{ message?: string }>;
-      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch');
-    }
-  }
-);
-
 export const createAccount = createAsyncThunk<Account, Account, { rejectValue: string }>(
   'bank/create', async (createData, thunkAPI) => {
     try {

@@ -111,7 +111,6 @@ async function seed() {
     { name: "Report Stock", action: "report_stock", group: "Report" },
     { name: "Report Sale", action: "report_sale", group: "Report" },
     { name: "Report Payment", action: "report_payment", group: "Report" },
-    { name: "Report Expense", action: "report_expense", group: "Report" },
     { name: "Report Balance", action: "report_balance", group: "Report" },
 
     { name: "Status Manage", action: "manage_status", group: "Status" },
