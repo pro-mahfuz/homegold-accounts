@@ -31,6 +31,15 @@ export const getOverallStockReport = async (req, res, next) => {
     }
 }
 
+export const getCapitalReport = async (req, res, next) => {
+    try {
+        const data = await StockService.getCapitalReport(req.user.businessId);
+        return success(res, data, "Response successful");
+    } catch (err) {
+        return error(res, err.message, err.status || 500);
+    }
+}
+
 export const createStockTransfer = async (req, res, next) => {
     try {
         const data = await StockService.createStockTransfer(req);

@@ -141,6 +141,7 @@ const AppSidebar: React.FC<any> = () => {
         { name: "Payment Transaction", path: "/report/purchase/cash-payment", permission:"report_purchase_cash_payment" },
         { name: "Received Transaction", path: "/report/sale/cash-collection", permission:"report_sale_cash_collection" },
         { name: "Stock Report", path: "/report/stock", permission:"report_stock" },
+        { name: "Capital Report", path: "/report/capital", permission:"report_capital" },
         { name: "Receivable & Payable", path: "/report/receivable", permission:"report_receivable" },
         // { name: "Payable Report", path: "/report/payable", permission:"report_payable" },
         { name: "Cashbook Report", path: "/report/cashbook", permission:"report_balance" },
