@@ -18,7 +18,7 @@ import { selectUserById } from "../../user/features/userSelectors";
 import { BalanceByCurrency } from "../../party/features/partyTypes.ts";
 
 const convertBalanceToDh = (currency: string, balance: number, rate: number) =>
-  ["gold-920", "gold-999"].includes(currency.trim().toLowerCase())
+  ["gold-920", "gold-999", "usd"].includes(currency.trim().toLowerCase())
     ? balance * rate
     : balance / rate;
 
