@@ -1,4 +1,5 @@
 import { Stock, Business, User, Invoice, InvoiceItem, Item, Bank, Category, Ledger, Warehouse, Party, sequelize } from "../../models/model.js";
+import { getReceivablePayable } from "../party/party.service.js";
 import { fn, literal, Op } from "sequelize";
 
 const STOCK_PREFIX_MAP = {
@@ -152,10 +153,11 @@ export const getAllStock = async () => {
     return stockData;
 }
 
-export const getStockReport = async () => {
+export const getStockReport = async (businessId = null) => {
   const ledgerRows = await Ledger.findAll({
     where: {
       isDeleted: false,
+      ...(businessId ? { businessId } : {}),
       invoiceId: { [Op.ne]: null },
       transactionType: {
         [Op.in]: STOCK_REPORT_LEDGER_TYPES,
@@ -383,6 +385,93 @@ export const getOverallStockReport = async () => {
     summary,
     details,
   };
+};
+
+export const getCapitalReport = async (businessId) => {
+  const [stockDetails, paymentAccounts, cashLedgers, purchaseItems, partyBalances] = await Promise.all([
+    getStockReport(businessId).catch((err) => {
+      if (err?.status === 400) return [];
+      throw err;
+    }),
+    Bank.findAll({
+      where: { businessId, isActive: true },
+      attributes: ["currency", "openingBalance"],
+      raw: true,
+    }),
+    Ledger.findAll({
+      where: { businessId, isDeleted: false, bankId: { [Op.ne]: null } },
+      attributes: ["currency", "debit", "credit"],
+      raw: true,
+    }),
+    InvoiceItem.findAll({
+      attributes: ["itemId", "unit", "quantity", "price"],
+      include: [{ model: Invoice, as: "invoice", required: true, attributes: ["currency"], where: { isDeleted: false, businessId, invoiceType: "unfix_purchase" } }],
+      raw: true,
+    }),
+    getReceivablePayable({ user: { businessId }, query: {} }),
+  ]);
+
+  const cashByCurrency = new Map();
+  paymentAccounts.forEach((account) => {
+    const currency = account.currency || "Unknown";
+    cashByCurrency.set(currency, (cashByCurrency.get(currency) || 0) + (Number(account.openingBalance) || 0));
+  });
+  cashLedgers.forEach((ledger) => {
+    const currency = ledger.currency || "Unknown";
+    const delta = (Number(ledger.debit) || 0) - (Number(ledger.credit) || 0);
+    cashByCurrency.set(currency, (cashByCurrency.get(currency) || 0) + delta);
+  });
+
+  const partyBalanceByCurrency = new Map();
+  (partyBalances.totals || []).forEach((total) => {
+    partyBalanceByCurrency.set(total.currency || "Unknown", {
+      receivable: Number(total.receivable) || 0,
+      payable: Number(total.payable) || 0,
+    });
+  });
+
+  const purchaseCostByItem = new Map();
+  purchaseItems.forEach((row) => {
+    const key = [Number(row.itemId) || 0, row.unit ?? ""].join("|");
+    const currency = row["invoice.currency"] || "Unknown";
+    const currencyCosts = purchaseCostByItem.get(key) ?? new Map();
+    const cost = currencyCosts.get(currency) ?? { quantity: 0, amount: 0 };
+    const quantity = Number(row.quantity) || 0;
+    cost.quantity += quantity;
+    cost.amount += quantity * (Number(row.price) || 0);
+    currencyCosts.set(currency, cost);
+    purchaseCostByItem.set(key, currencyCosts);
+  });
+
+  const details = [];
+  stockDetails.forEach((stock) => {
+    const quantity = Number(stock.currentStock) || 0;
+    if (quantity <= 0) return;
+    const currencyCosts = purchaseCostByItem.get([Number(stock.itemId) || 0, stock.unit ?? ""].join("|"));
+    if (!currencyCosts) return;
+    const [currency, cost] = Array.from(currencyCosts.entries())
+      .sort((a, b) => b[1].quantity - a[1].quantity)[0];
+    const averageCost = cost.quantity > 0 ? cost.amount / cost.quantity : 0;
+    details.push({ itemId: stock.itemId, itemName: stock.item?.name ?? "-", warehouseName: stock.warehouse?.name ?? "-", unit: stock.unit ?? "", quantity, currency, averageCost, stockValue: quantity * averageCost });
+  });
+
+  const stockValueByCurrency = new Map();
+  details.forEach((row) => stockValueByCurrency.set(row.currency, (stockValueByCurrency.get(row.currency) || 0) + row.stockValue));
+  const currencies = new Set([...cashByCurrency.keys(), ...partyBalanceByCurrency.keys(), ...stockValueByCurrency.keys()]);
+  const summary = Array.from(currencies).sort().map((currency) => {
+    const cashBankBalance = cashByCurrency.get(currency) || 0;
+    const balances = partyBalanceByCurrency.get(currency) ?? { receivable: 0, payable: 0 };
+    const stockValue = stockValueByCurrency.get(currency) || 0;
+    return {
+      currency,
+      cashBankBalance,
+      receivable: balances.receivable,
+      payable: balances.payable,
+      stockValue,
+      overallCapital: cashBankBalance + stockValue + balances.receivable - balances.payable,
+    };
+  });
+  return { summary, details };
 };
 
 export const createStockTransfer = async (req) => {

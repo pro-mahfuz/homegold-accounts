@@ -41,6 +41,7 @@ import StockCreateForm from "./modules/stock/pages/StockCreateForm";
 import StockListForm from "./modules/stock/pages/StockList";
 import StockEditForm from "./modules/stock/pages/StockEditForm";
 import StockReport from "./modules/report/pages/StockReport";
+import CapitalReport from "./modules/report/pages/CapitalReport";
 import SaleReport from "./modules/report/pages/SaleReport";
 import SalePaymentReport from "./modules/report/pages/SaleCashCollectionReport";
 import ProfitLossReport from "./modules/report/pages/profitLossReport";
@@ -253,6 +254,12 @@ export default function App() {
               <PrivateRoute permissions={['report_stock']}>
                 <StockReport />
               </PrivateRoute>} 
+            />
+
+            <Route index path="/report/capital" element={
+              <PrivateRoute permissions={['report_capital']}>
+                <CapitalReport />
+              </PrivateRoute>}
             />
 
             <Route index path="/report/purchase" element={

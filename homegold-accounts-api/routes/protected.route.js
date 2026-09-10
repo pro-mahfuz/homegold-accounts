@@ -183,6 +183,7 @@ router.get("/ledger/list", authorize(["manage_ledger", "currency_ledger"]), Ledg
 /** Report */
 router.post("/stock/getStockReport", authorize("report_stock"), StockController.getStockReport);
 router.post("/stock/getOverallStockReport", authorize("report_stock"), StockController.getOverallStockReport);
+router.post("/stock/getCapitalReport", authorize("report_capital"), StockController.getCapitalReport);
 router.post("/invoice/getSaleReport", authorize("report_sale"), InvoiceController.getSaleReport);
 router.post("/invoice/getPurchaseReport", authorize("report_purchase"), InvoiceController.getPurchaseReport);
 router.post("/invoice/getSaleCashReport", authorize("report_sale"), InvoiceController.getSaleCashReport);
