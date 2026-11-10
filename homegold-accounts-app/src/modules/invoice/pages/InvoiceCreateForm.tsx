@@ -75,6 +75,7 @@ export default function InvoiceCreateForm() {
     const authUser = useSelector(selectAuth);
     const user = useSelector(selectUserById(Number(authUser.user?.id)));
     const [loading, setLoading] = useState(false);
+    const [quantityInputValues, setQuantityInputValues] = useState<Record<number, string>>({});
 
     useEffect(() => {
         dispatch(fetchAllCategory());
@@ -817,9 +818,19 @@ export default function InvoiceCreateForm() {
                                 <Input
                                     type="number"
                                     name="quantity"
-                                    value={formData.items[index]?.quantity || ''}
+                                    value={
+                                        quantityInputValues[item.uniqueId ?? index] ??
+                                        (formData.items[index]?.quantity || '')
+                                    }
                                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                                        const value = Number(e.target.value);
+                                        const inputValue = e.target.value;
+                                        const value = Number(inputValue);
+
+                                        setQuantityInputValues((prev) => ({
+                                            ...prev,
+                                            [item.uniqueId ?? index]: inputValue,
+                                        }));
+
                                         const updatedItems = [...formData.items];
                                         updatedItems[index] = {
                                             ...updatedItems[index],
@@ -846,7 +857,7 @@ export default function InvoiceCreateForm() {
                                         }));
                                     }}
                                     placeholder="0"
-                                    min="0"
+                                    min="0.01"
                                     step={0.01}
                                     className="max-w-40"
                                 />

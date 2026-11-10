@@ -79,6 +79,7 @@ export default function StockCreateForm() {
         quantity: 0,
         unit: ''
     });
+    const [quantityInputValue, setQuantityInputValue] = useState("");
 
     const selectedCategoryName =
         categories.find((c) => c.id === formData.categoryId)?.name?.toLowerCase() ?? "";
@@ -101,6 +102,10 @@ export default function StockCreateForm() {
 
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
+        if (name === "quantity") {
+            setQuantityInputValue(value);
+        }
+
         setFormData((prev) => ({
             ...prev,
             [name]: name === "quantity" ? Number(value) : value,
@@ -316,7 +321,9 @@ export default function StockCreateForm() {
                     type="number"
                     name="quantity"
                     placeholder="0"
+                    value={quantityInputValue}
                     onChange={handleChange}
+                    min="0.01"
                     step={0.01}
                     required
                 />

@@ -29,7 +29,7 @@ export default (sequelize, DataTypes) => {
     quantity: {
       type: DataTypes.FLOAT,
       allowNull: false,
-      validate: { min: 1 },
+      validate: { min: 0.01 },
     },
     unit: {
       type: DataTypes.STRING,

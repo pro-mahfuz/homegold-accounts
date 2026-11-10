@@ -81,6 +81,7 @@ export default function StockEditForm() {
         quantity: 0,
         unit: ''
     });
+    const [quantityInputValue, setQuantityInputValue] = useState("");
 
     const selectedCategoryName =
         categories.find((c) => c.id === formData.categoryId)?.name?.toLowerCase() ?? "";
@@ -89,6 +90,10 @@ export default function StockEditForm() {
 
     useEffect(() => {
           if (!stock) return;
+
+          setQuantityInputValue(
+            stock.quantity == null ? "" : String(stock.quantity)
+          );
 
           setFormData({
             id: stock?.id,
@@ -122,6 +127,10 @@ export default function StockEditForm() {
 
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
+        if (name === "quantity") {
+            setQuantityInputValue(value);
+        }
+
         setFormData((prev) => ({
             ...prev,
             [name]: name === "quantity" ? Number(value) : value,
@@ -333,8 +342,9 @@ export default function StockEditForm() {
                         type="number"
                         name="quantity"
                         placeholder="0"
-                        value={formData.quantity > 0 ? formData.quantity : ""}
+                        value={quantityInputValue}
                         onChange={handleChange}
+                        min="0.01"
                         step={0.01}
                         required
                     />

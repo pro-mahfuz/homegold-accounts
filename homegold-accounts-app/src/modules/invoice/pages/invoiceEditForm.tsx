@@ -58,6 +58,7 @@ export default function InvoiceEditForm() {
     const dispatch = useDispatch<AppDispatch>();
 
     const [loading, setLoading] = useState(false);
+    const [quantityInputValues, setQuantityInputValues] = useState<Record<number, string>>({});
 
     const [formData, setFormData] = useState<Invoice>({
         id: 0,
@@ -129,6 +130,14 @@ export default function InvoiceEditForm() {
 
     useEffect(() => {
         if (user?.business?.id && invoice) {
+            setQuantityInputValues(
+                invoice.items.reduce<Record<number, string>>((values, item, index) => {
+                    values[item.uniqueId ?? item.id ?? index] =
+                        item.quantity == null ? "" : String(item.quantity);
+                    return values;
+                }, {})
+            );
+
             setFormData({
                 id: invoice.id,
                 businessId: user.business.id,
@@ -733,9 +742,19 @@ export default function InvoiceEditForm() {
                                 <Input
                                     type="number"
                                     name="quantity"
-                                    value={formData.items[index]?.quantity || ''}
+                                    value={
+                                        quantityInputValues[item.uniqueId ?? item.id ?? index] ??
+                                        (formData.items[index]?.quantity || '')
+                                    }
                                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                                        const value = Number(e.target.value);
+                                        const inputValue = e.target.value;
+                                        const value = Number(inputValue);
+
+                                        setQuantityInputValues((prev) => ({
+                                            ...prev,
+                                            [item.uniqueId ?? item.id ?? index]: inputValue,
+                                        }));
+
                                         const updatedItems = [...formData.items];
                                         updatedItems[index] = {
                                         ...updatedItems[index],
@@ -755,7 +774,7 @@ export default function InvoiceEditForm() {
                                         }));
                                     }}
                                     placeholder="0"
-                                    min="0"
+                                    min="0.01"
                                     step={0.01}
                                     className="max-w-40"
                                 />
